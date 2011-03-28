@@ -1,0 +1,6 @@
+#ignore bin files
+MemoryManagerSimulator/bin/
+*.class
+*.o
+*.jar
+*/bin/*
