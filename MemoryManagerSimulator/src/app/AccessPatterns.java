@@ -12,6 +12,10 @@ public class AccessPatterns {
 		this.m = m;
 	}
 	
+	/**
+	 * simulates nested block join. 
+	 * @param l
+	 */
 	public void trace_block_join(int l) {
 		
 		int [] R = {0, 50}; // R relation block ids.
