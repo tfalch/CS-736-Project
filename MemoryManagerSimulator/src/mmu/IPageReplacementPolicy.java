@@ -2,6 +2,8 @@ package mmu;
 
 public interface IPageReplacementPolicy {
 
+	public String name();
+	
 	public MemoryPage evict(MemoryPage [] pages);
 	
 	public void love(MemoryPage page, int l);

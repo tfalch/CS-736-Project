@@ -2,6 +2,10 @@ package mmu;
 
 public class LRUReplacementPolicy implements IPageReplacementPolicy {
 
+	public String name() {
+		return "LRU";
+	}
+	
 	@Override
 	public MemoryPage evict(MemoryPage[] pages) {
 		long min = System.currentTimeMillis() + 1000;

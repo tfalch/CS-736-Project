@@ -5,6 +5,10 @@ public class LoveHateReplacementPolicy implements IPageReplacementPolicy {
 	
 	private static int PIN_LEVEL = 255;
 	
+	public String name() {
+		return "LHR";
+	}
+	
 	public MemoryPage evict(MemoryPage [] pages) {
 		
 		long min = System.currentTimeMillis() + 1000;

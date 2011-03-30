@@ -178,6 +178,10 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 	private int link_id = 0;
 	private HashMap<Integer, Chain> link_table = new HashMap<Integer, Chain>();
 	
+	public String name() {
+		return "C-LRU";
+	}
+	
 	/**
 	 * creates a new chain
 	 * @return chain object.
