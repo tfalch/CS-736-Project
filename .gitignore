@@ -4,8 +4,4 @@ MemoryManagerSimulator/bin/
 *.o
 *.jar
 */bin/*
-*.classpath
-*.project
-*.prefs
-.*
 *~
