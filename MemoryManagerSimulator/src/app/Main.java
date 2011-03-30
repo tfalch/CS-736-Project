@@ -8,60 +8,49 @@ import mmu.LoveHateReplacementPolicy;
 import mmu.MemoryManager;
 import mmu.ChainedLeastRecentlyUsedReplacementPolicy;
 
-public class Main {
+public class Main {	
 	
-	public static void main(String [] args) throws IOException {
+	public static void simulate_block_join(IPageReplacementPolicy p, int l) {
 		
-		int size = 15;
-		
-		System.out.println("LHR on Nested Block Join");
 		long start = System.currentTimeMillis();
-		
-		IPageReplacementPolicy policy = new LoveHateReplacementPolicy();
-		MemoryManager m = new MemoryManager(policy, size);
-		new AccessPatterns(m).trace_block_join(15);
+		MemoryManager m = new MemoryManager(p, 15);
+		new AccessPatterns(m).trace_block_join(l);
 		long end = System.currentTimeMillis();
-		m.summary();
-		System.out.println("duration = " + (end - start));
-		System.out.println("===================================================");
-		//System.in.read();
 		
+		System.out.print(p.name() + ": ");
+		System.out.print("duration=" + (end - start) + ";"); m.summary();
+	}
+	
+	public static void simulate_index_join(IPageReplacementPolicy p, int l) {
+		long start = System.currentTimeMillis();
+		MemoryManager m = new MemoryManager(p, 3);
+		new AccessPatterns(m).trace_index_join(l);
+		long end = System.currentTimeMillis();
 		
-		System.out.println("C-LRU on Nested Block Join");
-		start = System.currentTimeMillis();
-		policy = new ChainedLeastRecentlyUsedReplacementPolicy();
-		m = new MemoryManager(policy, size);
-		Chain c = ((ChainedLeastRecentlyUsedReplacementPolicy)policy).love(true);
-		new AccessPatterns(m).trace_block_join(c.id());	
-		end = System.currentTimeMillis();
+		System.out.print(p.name() + ": ");
+		System.out.print("duration=" + (end - start) + ";"); m.summary();
+	}
+	
+	public static void main(String [] args) throws IOException {				
 		
-		m.summary();
-		System.out.println("duration = " + (end - start));
-		System.out.println("===================================================");
-		//System.in.read();
+		System.out.println("\t\t===================================================");
+		System.out.println("\t\t\t   Simulating Nested Block Join");
+		System.out.println("\t\t===================================================");		
 		
-		System.out.println("C-LRU on Index Join");
-		start = System.currentTimeMillis();
-		size = 3; // tighter memory constraints for index search. 
-		m = new MemoryManager(policy, size);
-		c = ((ChainedLeastRecentlyUsedReplacementPolicy)policy).love(true);
-		new AccessPatterns(m).trace_index_join(c.id());
-		end = System.currentTimeMillis();
+		simulate_block_join(new LRUReplacementPolicy(), -1);
+		simulate_block_join(new LoveHateReplacementPolicy(), 20);
+		ChainedLeastRecentlyUsedReplacementPolicy clru = new ChainedLeastRecentlyUsedReplacementPolicy();
+		simulate_block_join(clru, clru.love().id());
+		System.out.println();
 		
-		m.summary();
-		System.out.println("duration = " + (end - start));
-		System.out.println("===================================================");
-		//System.in.read();
+		System.out.println("\t\t===================================================");
+		System.out.println("\t\t\t       Simulating Index Join");
+		System.out.println("\t\t===================================================");
 		
-		System.out.println("LRU on Index Join");
-		start = System.currentTimeMillis();
-		m = new MemoryManager(new LRUReplacementPolicy(), size);
-		new AccessPatterns(m).trace_index_join(5);
-		end = System.currentTimeMillis();
-		
-		m.summary();
-		System.out.println("duration = " + (end - start));
-		System.out.println("===================================================");
-		//System.in.read();
+		simulate_index_join(new LRUReplacementPolicy(), -1);
+		simulate_index_join(new LoveHateReplacementPolicy(), 10);
+		clru = new ChainedLeastRecentlyUsedReplacementPolicy();
+		simulate_index_join(clru, clru.love(true).id());
+		System.out.println();
 	}
 }
