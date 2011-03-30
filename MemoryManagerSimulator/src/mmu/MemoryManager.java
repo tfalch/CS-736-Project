@@ -1,5 +1,6 @@
 package mmu;
 
+import java.text.DecimalFormat;
 import java.util.Arrays;
 import java.util.HashMap;
 
@@ -60,8 +61,27 @@ public class MemoryManager {
 		return this.size;
 	}
 	
-	public void stats() {
+	public void summary() {
 		
+		long hit = 0;
+		long miss = 0;
+		long evicted = 0;
+		
+		for (MemoryPage page : this.disk.values()) {
+			hit += page.hits();
+			miss += page.misses();
+			evicted += page.evictions();
+		}
+		
+		DecimalFormat df = new DecimalFormat("0.00");
+		
+		System.out.println("page statistics:[hit-count=" + hit + ";miss-count=" +
+				miss + ";evicted-count=" + evicted + "; miss-ratio=" + 
+				df.format((double)miss/hit) + "]");
+		
+	}
+	
+	public void stats() {
 		Integer [] addresses = this.disk.keySet().toArray(new Integer[0]);
 		
 		Arrays.sort(addresses);

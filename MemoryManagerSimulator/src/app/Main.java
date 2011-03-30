@@ -21,10 +21,10 @@ public class Main {
 		MemoryManager m = new MemoryManager(policy, size);
 		new AccessPatterns(m).trace_block_join(15);
 		long end = System.currentTimeMillis();
-		m.stats();
+		m.summary();
 		System.out.println("duration = " + (end - start));
 		System.out.println("===================================================");
-		System.in.read();
+		//System.in.read();
 		
 		
 		System.out.println("C-LRU on Nested Block Join");
@@ -35,10 +35,10 @@ public class Main {
 		new AccessPatterns(m).trace_block_join(c.id());	
 		end = System.currentTimeMillis();
 		
-		m.stats();
+		m.summary();
 		System.out.println("duration = " + (end - start));
 		System.out.println("===================================================");
-		System.in.read();
+		//System.in.read();
 		
 		System.out.println("C-LRU on Index Join");
 		start = System.currentTimeMillis();
@@ -48,10 +48,10 @@ public class Main {
 		new AccessPatterns(m).trace_index_join(c.id());
 		end = System.currentTimeMillis();
 		
-		m.stats();
+		m.summary();
 		System.out.println("duration = " + (end - start));
 		System.out.println("===================================================");
-		System.in.read();
+		//System.in.read();
 		
 		System.out.println("LRU on Index Join");
 		start = System.currentTimeMillis();
@@ -59,9 +59,9 @@ public class Main {
 		new AccessPatterns(m).trace_index_join(5);
 		end = System.currentTimeMillis();
 		
-		m.stats();
+		m.summary();
 		System.out.println("duration = " + (end - start));
 		System.out.println("===================================================");
-		System.in.read();
+		//System.in.read();
 	}
 }

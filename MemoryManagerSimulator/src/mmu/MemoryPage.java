@@ -36,6 +36,18 @@ public class MemoryPage {
 		this.stats[Counters.EVICT.ordinal()]++;
 	} 
 	
+	public int hits() {
+		return this.stats[Counters.HIT.ordinal()];
+	}
+	
+	public int misses() {
+		return this.stats[Counters.MISS.ordinal()];
+	}
+	
+	public int evictions() {
+		return this.stats[Counters.EVICT.ordinal()];
+	}
+	
 	public String toString() {
 		return "0x" + Integer.toHexString(this.address);
 	}
