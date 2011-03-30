@@ -14,13 +14,14 @@ public class AccessPatterns {
 	
 	/**
 	 * simulates nested block join. 
-	 * @param l
+	 * @param l - love.
+	 * @param r - # of blocks in R-relation (r << s).
+	 * @param s - # of blocks in S-relation (s >> r).
 	 */
-	public void trace_block_join(int l) {
+	public void trace_block_join(int l, int r, int s) {
 		
-		int [] R = {0, 50}; // R relation block ids.
-		int [] S = {100, 500}; // S relation block ids.
- 		
+		int [] R = {0, r}; // R relation block ids.
+		int [] S = {r + s, r + s + s}; // S relation block ids.
 		
 		for (int i = R[0]; i < R[1]; ) {
 			int n = 0;
@@ -33,7 +34,7 @@ public class AccessPatterns {
 			}
 			
 			for (int j = S[0]; j < S[1]; j++) {
-				
+				/* compare records in R & S */
 				for (int k = 1; k <= n; k++) {
 					this.m.access(i-k);
 					this.m.access(j);
@@ -42,9 +43,14 @@ public class AccessPatterns {
 		}
 	}
 	
-	public void trace_index_join(int l) {
-		int d = 4; // tree depth
-		int f = 255; // branching factor
+	/**
+	 * 
+	 * @param l - love.
+	 * @param n - # of records to retrieve.
+	 * @param d - tree depth
+	 * @param f - fan out/branching factor.
+	 */
+	public void trace_index_join(int l, int n, int d, int f) {
 		
 		Random r = new Random();
 		
@@ -52,7 +58,7 @@ public class AccessPatterns {
 		this.m.love(0, l, true); // pin root of tree in memory.
 		
 		// generate x random search keys.
-		for (int i = 0; i < 250; i++) {
+		for (int i = 0; i < n; i++) {
 			int branch = 0;
 		
 			this.m.access(branch); // read root.
