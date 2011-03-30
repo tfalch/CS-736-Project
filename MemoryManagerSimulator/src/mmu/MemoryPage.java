@@ -34,7 +34,7 @@ public class MemoryPage {
 	
 	public void evict() {
 		this.stats[Counters.EVICT.ordinal()]++;
-	}
+	} 
 	
 	public String toString() {
 		return "0x" + Integer.toHexString(this.address);
