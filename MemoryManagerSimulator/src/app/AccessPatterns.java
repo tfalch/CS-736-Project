@@ -32,13 +32,18 @@ public class AccessPatterns {
 				this.m.love(i, l);
 				n++;
 			}
-			
+
 			for (int j = S[0]; j < S[1]; j++) {
 				/* compare records in R & S */
 				for (int k = 1; k <= n; k++) {
-					this.m.access(i-k);
 					this.m.access(j);
+					this.m.access(i-k);
 				}
+			}
+			
+			/* hate pages to flush from cash */
+			for (int k = 1; k <= n; k++) {
+				this.m.hate(i-k, 0);
 			}
 		}
 	}

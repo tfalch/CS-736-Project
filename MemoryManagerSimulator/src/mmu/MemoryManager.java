@@ -21,7 +21,7 @@ public class MemoryManager {
 		}
 		
 		try {
-			Thread.sleep(1);
+			Thread.sleep(0);
 		} catch (InterruptedException e) {
 		}
 		
@@ -55,6 +55,10 @@ public class MemoryManager {
 	
 	public void love(int page, int l, boolean pin) {
 		this.policy.love(this.memory.get(page), l, pin);
+	}
+	
+	public void hate(int page, int l) {
+		this.policy.hate(this.memory.get(page), l);
 	}
 	
 	public int capacity() {

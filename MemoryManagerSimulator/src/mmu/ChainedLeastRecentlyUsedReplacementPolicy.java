@@ -72,7 +72,7 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 		}
 		
 		private void unlink(MemoryPage page) {
-			if (page != null) {
+			if (page != null && page.link != -1) {
 				 if (page.prev == null) { // head of list
 					 this.head = page.next;
 					 if (this.head != null) {
@@ -92,11 +92,11 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 				 if (this.anchor == page) {
 					 this.anchor = null;
 				 }
-				  
-				 this.remove_link(page);				 
+				 
+				 this.remove_link(page);
 				 
 				 this.size--;	 
-			 }
+			}
 		}
 		
 		private MemoryPage evict() {
@@ -124,7 +124,7 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 			 }
 			 
 			 this.unlink(page);
-			 page.time = min;
+			 page.time = min; 
 			 
 			 return page;
 		}
@@ -135,7 +135,7 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 			if (page.link == this.id) {
 				return true;
 			}
-			
+
 			if (this.size >= this.capacity) {
 				this.evict();
 			}
@@ -168,17 +168,17 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 		private long timestamp(int sample) {
 			
 			if (this.sample == sample) {
-				return this.sample;
+				return this.timestamp;
 			}
 			
 			for (MemoryPage p = this.head; p != null; p = p.next) {
-				if (p.time > timestamp) {
-					timestamp = p.time;
+				if (p.time > this.timestamp) {
+					this.timestamp = p.time;
 				}
 			}
 			
 			this.sample = sample;
-			return timestamp;
+			return this.timestamp;
 		}
 	}
 	
@@ -253,7 +253,9 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 	}
 	
 	public void hate(MemoryPage page) {
-		this.link_table.get(page.link).unchain();
+		if (page.link != -1) {
+			this.link_table.get(page.link).unchain();
+		}
 	}
 	
 	public void hate(MemoryPage page, int link) {
@@ -274,7 +276,7 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 			
 		this.sample++;
 		for (MemoryPage p : pages) {
-			
+
 			if (p.link >= 0) {
 				Chain c = this.link_table.get(p.link);
 				long timestamp = c.timestamp(this.sample);
@@ -288,7 +290,7 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 			} else if (p.link == -1 && p.time <= min) {
 				min = p.time;
 				pg = p;
-				id = null;
+				id = null; 
 			}
 		}
 		
