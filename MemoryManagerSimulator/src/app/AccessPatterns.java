@@ -45,30 +45,36 @@ public class AccessPatterns {
 	
 	/**
 	 * 
-	 * @param l - love.
-	 * @param n - # of records to retrieve.
-	 * @param d - tree depth
-	 * @param f - fan out/branching factor.
+	 * @param l - love
+	 * @param k - # of keys to simulate searching.
+	 * @param n - # of records in index/relation.
+	 * @param f - fan-out/branching factor of index.
 	 */
-	public void trace_index_join(int l, int n, int d, int f) {
+	public void trace_index_join(int l, int k, int n, int f) {
 		
 		Random r = new Random();
+		int d = (int)Math.ceil(Math.log(n) / Math.log(f));
 		
 		this.m.access(0); // load root.
 		this.m.love(0, l, true); // pin root of tree in memory.
 		
 		// generate x random search keys.
-		for (int i = 0; i < n; i++) {
-			int branch = 0;
-		
-			this.m.access(branch); // read root.
+		for (int i = 0; i < k; i++) {
+			int branch = r.nextInt((int)(Math.ceil(n/Math.pow(f, d-1))));
+			int block = 0;				
+			
+			this.m.access(block); // read root.
 			for (int j = 1; j < d; j++) {
-				branch = 1 + branch * f + r.nextInt(f);
+				branch = ((1+branch) * f) + r.nextInt(f);
+				block = branch / f;
 				
-				this.m.access(branch);
-				this.m.love(branch, l);
+				this.m.access(block); // read next node.
+				this.m.love(block, l);
 			}
+			
+			// last branch is record id.
+			// block = branch / #recs-per-block.
+			this.m.access(branch/40); // read data block. 
 		}
 	}
-	
 }

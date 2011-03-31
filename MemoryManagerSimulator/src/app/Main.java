@@ -9,28 +9,29 @@ import mmu.MemoryManager;
 
 public class Main {	
 	
-	public static void simulate_block_join(IPageReplacementPolicy p, int l) {
-		
+	private static void simulate_block_join(IPageReplacementPolicy p, int l) {
+
 		long start = System.currentTimeMillis();
 		MemoryManager m = new MemoryManager(p, 30);
-		new AccessPatterns(m).trace_block_join(l, 250, 1000);
+		new AccessPatterns(m).trace_block_join(l, 125, 500);
 		long end = System.currentTimeMillis();
 		
 		System.out.print(p.name() + ": ");
 		System.out.print("duration=" + (end - start) + ";"); m.summary();
 	}
 	
-	public static void simulate_index_join(IPageReplacementPolicy p, int l) {
+	private static void simulate_index_join(IPageReplacementPolicy p, int l) {
+
 		long start = System.currentTimeMillis();
-		MemoryManager m = new MemoryManager(p, 5);
-		new AccessPatterns(m).trace_index_join(l, 2500, 5, 125);
+		MemoryManager m = new MemoryManager(p, 15);
+		new AccessPatterns(m).trace_index_join(l, 2500, 100000000, 64);
 		long end = System.currentTimeMillis();
 		
 		System.out.print(p.name() + ": ");
 		System.out.print("duration=" + (end - start) + ";"); m.summary();
 	}
 	
-	public static void main(String [] args) throws IOException {				
+	public static void run() {
 		
 		System.out.println("\t\t===================================================");
 		System.out.println("\t\t\t   Simulating Nested Block Join");
@@ -48,9 +49,13 @@ public class Main {
 		System.out.println("\t\t===================================================");
 		
 		clru = new ChainedLeastRecentlyUsedReplacementPolicy();
-		simulate_index_join(new LoveHateReplacementPolicy(), 254);
 		simulate_index_join(clru, clru.love(true).id());
+		simulate_index_join(new LoveHateReplacementPolicy(), 254);
 		simulate_index_join(new LRUReplacementPolicy(), -1);
 		System.out.println();
+	}
+	
+	public static void main(String [] args) throws IOException {			
+		Main.run();
 	}
 }
