@@ -1,17 +1,20 @@
 package mmu;
 
 import java.text.DecimalFormat;
-import java.util.Arrays;
-import java.util.HashMap;
+import java.util.*;
 
 public class MemoryManager {
 
 	private IPageReplacementPolicy policy;
 	private int size;
+	private MemoryPage[] memory;
+	private int memoryPointer = 0;
+	private HashMap<Integer, MemoryPage> disk = new HashMap<Integer, MemoryPage>();
 	
 	public MemoryManager(IPageReplacementPolicy policy, int size) {
 		this.policy = policy;
 		this.size = size;
+		memory = new MemoryPage[size];
 	}
 	
 	private MemoryPage getFromDisk(int address) {
@@ -31,16 +34,23 @@ public class MemoryManager {
 	
 	public void access(int address) {
 		
-		MemoryPage page = this.memory.get(address);
+		MemoryPage page = getFromMemory(address);
 		
 		//If not in memory, get if from disk
 		if (page == null) {
 			
+			int posToInsert;
+			
 			//If memory is full, evict a page
-			if (this.memory.size() >= this.size) {
-				page = this.policy.evict(this.memory.values().toArray(new MemoryPage[0]));
+			if (memoryPointer >= memory.length) {
+				page = this.policy.findPageToEvict(memory);
 				page.updateEvictStats();
-				this.memory.remove(page.address);
+				posToInsert = evict(page);
+			}
+			//If its not full, get a pointer to next free memory
+			else{
+				posToInsert = memoryPointer;
+				memoryPointer++;
 			}
 			
 			
@@ -50,22 +60,42 @@ public class MemoryManager {
 			//TODO should this be here?
 			page.updateRefStats();
 			
-			this.memory.put(address, page);
+			memory[posToInsert] = page;
+			
 		} else {
 			page.updateRefStats();
 		}
 	}
 	
+	private MemoryPage getFromMemory(int address){
+		for(MemoryPage p: memory){
+			if(p != null)
+				if(p.address == address)
+					return p;
+		}
+		return null;
+	}
+	
+	private int evict(MemoryPage page){
+		for(int i = 0; i < memory.length; i++){
+			if(memory[i] != null){
+				if(memory[i].address == page.address)
+					return i;
+			}
+		}
+		return -1;
+	}
+	
 	public void love(int page, int l) {
-		this.policy.love(this.memory.get(page), l);
+		this.policy.love(getFromMemory(page), l);
 	}
 	
 	public void love(int page, int l, boolean pin) {
-		this.policy.love(this.memory.get(page), l, pin);
+		this.policy.love(getFromMemory(page), l, pin);
 	}
 	
 	public void hate(int page, int l) {
-		this.policy.hate(this.memory.get(page), l);
+		this.policy.hate(getFromMemory(page), l);
 	}
 	
 	public int capacity() {
@@ -103,13 +133,8 @@ public class MemoryManager {
 	}
 	
 	public void profile() {
-		for (MemoryPage block : this.memory.values()) {
+		for (MemoryPage block : memory) {
 			System.out.print(block.toString() + ';');
 		}
 	}
-	
-	//private HashMap<Integer, Integer> directory = new HashMap<Integer, Integer>();
-	private HashMap<Integer, MemoryPage> memory = new HashMap<Integer, MemoryPage>();
-	private HashMap<Integer, MemoryPage> disk = new HashMap<Integer, MemoryPage>();
-	
 }

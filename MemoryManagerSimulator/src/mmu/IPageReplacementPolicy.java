@@ -4,7 +4,7 @@ public interface IPageReplacementPolicy {
 
 	public String name();
 	
-	public MemoryPage evict(MemoryPage [] pages);
+	public MemoryPage findPageToEvict(MemoryPage [] pages);
 	
 	public void love(MemoryPage page, int l);
 	public void love(MemoryPage page, int l, boolean pin);

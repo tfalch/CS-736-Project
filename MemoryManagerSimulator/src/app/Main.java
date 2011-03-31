@@ -1,5 +1,8 @@
 package app;
+import java.awt.Point;
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashMap;
 
 import mmu.ChainedLeastRecentlyUsedReplacementPolicy;
 import mmu.IPageReplacementPolicy;

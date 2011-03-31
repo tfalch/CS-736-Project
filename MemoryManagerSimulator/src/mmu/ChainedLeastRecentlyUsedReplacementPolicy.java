@@ -268,7 +268,7 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 	}
 	
 	private int sample = 0;
-	public MemoryPage evict(MemoryPage [] pages) {
+	public MemoryPage findPageToEvict(MemoryPage [] pages) {
 		
 		long min = System.currentTimeMillis() + 1000;
 		Integer id = null;

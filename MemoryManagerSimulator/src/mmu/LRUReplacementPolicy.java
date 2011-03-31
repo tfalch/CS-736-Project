@@ -7,7 +7,7 @@ public class LRUReplacementPolicy implements IPageReplacementPolicy {
 	}
 	
 	@Override
-	public MemoryPage evict(MemoryPage[] pages) {
+	public MemoryPage findPageToEvict(MemoryPage[] pages) {
 		long min = System.currentTimeMillis() + 1000;
 		MemoryPage evicted = null;
 		

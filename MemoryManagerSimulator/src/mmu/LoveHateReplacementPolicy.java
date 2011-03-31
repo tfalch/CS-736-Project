@@ -9,7 +9,7 @@ public class LoveHateReplacementPolicy implements IPageReplacementPolicy {
 		return "LHR";
 	}
 	
-	public MemoryPage evict(MemoryPage [] pages) {
+	public MemoryPage findPageToEvict(MemoryPage [] pages) {
 		
 		long minTime = System.currentTimeMillis() + 1000;
 		long lruMinTime = minTime;
