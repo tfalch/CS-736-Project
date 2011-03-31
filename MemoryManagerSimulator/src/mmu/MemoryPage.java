@@ -22,17 +22,17 @@ public class MemoryPage {
 		this.address = address;
 	}
 	
-	public void load() {
+	public void updateLoadStats() {
 		this.stats[Counters.MISS.ordinal()]++;
 		this.time = System.currentTimeMillis();
 	}
 	
-	public void ref() {
+	public void updateRefStats() {
 		this.stats[Counters.HIT.ordinal()]++;
 		this.time = System.currentTimeMillis();
 	}
 	
-	public void evict() {
+	public void updateEvictStats() {
 		this.stats[Counters.EVICT.ordinal()]++;
 	} 
 	

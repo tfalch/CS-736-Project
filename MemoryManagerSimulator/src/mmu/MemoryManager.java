@@ -14,12 +14,13 @@ public class MemoryManager {
 		this.size = size;
 	}
 	
-	private MemoryPage get(int address) {
+	private MemoryPage getFromDisk(int address) {
 		MemoryPage p = this.disk.get(address);
 		if (p == null) {
 			this.disk.put(address, p = new MemoryPage(address));
 		}
 		
+		//TODO is this needed?
 		try {
 			Thread.sleep(0);
 		} catch (InterruptedException e) {
@@ -32,20 +33,26 @@ public class MemoryManager {
 		
 		MemoryPage page = this.memory.get(address);
 		
+		//If not in memory, get if from disk
 		if (page == null) {
+			
+			//If memory is full, evict a page
 			if (this.memory.size() >= this.size) {
 				page = this.policy.evict(this.memory.values().toArray(new MemoryPage[0]));
-				page.evict();
+				page.updateEvictStats();
 				this.memory.remove(page.address);
 			}
 			
-			page = this.get(address);
-			page.load();
-			page.ref();
+			
+			page = this.getFromDisk(address);
+			page.updateLoadStats();
+			
+			//TODO should this be here?
+			page.updateRefStats();
 			
 			this.memory.put(address, page);
 		} else {
-			page.ref();
+			page.updateRefStats();
 		}
 	}
 	
