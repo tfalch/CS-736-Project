@@ -12,27 +12,36 @@ public class LoveHateReplacementPolicy implements IPageReplacementPolicy {
 	public MemoryPage evict(MemoryPage [] pages) {
 		
 		long minTime = System.currentTimeMillis() + 1000;
+		long lruMinTime = minTime;
 		int minLove = Integer.MAX_VALUE;
 		
-		MemoryPage b = null;
+		MemoryPage evitedBlock = null;
+		MemoryPage lruEvictedBlock = null;
 		
 		for (MemoryPage block : pages) {
 			
 			//Remove the least recently used page of those pages with the lowest level of love
-			
 			if(block.love < minLove || block.love == minLove && block.time < minTime){
 				minTime = block.time;
 				minLove = block.love;
-				b = block;
+				evitedBlock = block;
+			}
+			
+			//Keep track of the actually least recently used, ignoring love
+			if(block.time < lruMinTime){
+				lruMinTime = block.time;
+				lruEvictedBlock = block;
 			}
 			
 		}
-	
-		//Decrease the love of the evicted page
-		if(b.love != PIN_LEVEL){
-			b.love--;
+		
+		//If the evicted block is more recently used than some other block,
+		//the other block was protected by love, and its love should be decreased
+		if(lruEvictedBlock.time < evitedBlock.time){
+			lruEvictedBlock.love--;
 		}
-		return b;
+	
+		return evitedBlock;
 	}
 	
 	public void love(MemoryPage page, int level) {
