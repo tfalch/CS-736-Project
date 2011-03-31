@@ -177,6 +177,7 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 				}
 			}
 			
+			this.sample = sample;
 			return timestamp;
 		}
 	}
