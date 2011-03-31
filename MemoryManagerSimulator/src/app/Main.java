@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.HashMap;
 
 import mmu.ChainedLeastRecentlyUsedReplacementPolicy;
+import mmu.ClockReplacementPolicy;
 import mmu.IPageReplacementPolicy;
 import mmu.LRUReplacementPolicy;
 import mmu.LoveHateReplacementPolicy;
@@ -44,6 +45,7 @@ public class Main {
 		simulate_block_join(clru, clru.love().id());
 		simulate_block_join(new LoveHateReplacementPolicy(), 254);
 		simulate_block_join(new LRUReplacementPolicy(), -1);
+		simulate_block_join(new ClockReplacementPolicy(), -1);
 		
 		System.out.println();
 		
@@ -55,6 +57,9 @@ public class Main {
 		simulate_index_join(clru, clru.love(true).id());
 		simulate_index_join(new LoveHateReplacementPolicy(), 254);
 		simulate_index_join(new LRUReplacementPolicy(), -1);
+		simulate_index_join(new ClockReplacementPolicy(), -1);
+		
+		
 		System.out.println();
 	}
 	
