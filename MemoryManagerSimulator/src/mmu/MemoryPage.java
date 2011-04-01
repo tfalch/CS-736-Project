@@ -11,7 +11,7 @@ public class MemoryPage {
 	int address;
 	int love;
 	long time;
-	int referenced;
+	boolean referenced;
 	
 	int link = -1;
 	MemoryPage next = null;
@@ -31,7 +31,7 @@ public class MemoryPage {
 	public void updateRefStats() {
 		stats[Counters.HIT.ordinal()]++;
 		time = System.currentTimeMillis();
-		referenced = 1;
+		referenced = true;
 	}
 	
 	public void updateEvictStats() {

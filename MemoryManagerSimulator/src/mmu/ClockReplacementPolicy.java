@@ -10,10 +10,10 @@ public class ClockReplacementPolicy implements IPageReplacementPolicy {
 	
 	public MemoryPage findPageToEvict(MemoryPage[] pages) {
 		while(true){
-			if(pages[clockHand].referenced == 0)
+			if(!pages[clockHand].referenced)
 				return pages[clockHand];
 			else{
-				pages[clockHand].referenced = 0;
+				pages[clockHand].referenced = false;
 				clockHand = (clockHand + 1)%pages.length;
 			}
 		}

@@ -1,15 +1,7 @@
 package app;
-import java.awt.Point;
 import java.io.IOException;
-import java.util.Collection;
-import java.util.HashMap;
 
-import mmu.ChainedLeastRecentlyUsedReplacementPolicy;
-import mmu.ClockReplacementPolicy;
-import mmu.IPageReplacementPolicy;
-import mmu.LRUReplacementPolicy;
-import mmu.LoveHateReplacementPolicy;
-import mmu.MemoryManager;
+import mmu.*;
 
 public class Main {	
 	
@@ -46,6 +38,7 @@ public class Main {
 		simulate_block_join(new LoveHateReplacementPolicy(), 254);
 		simulate_block_join(new LRUReplacementPolicy(), -1);
 		simulate_block_join(new ClockReplacementPolicy(), -1);
+		simulate_block_join(new LoveClockReplacementPolicy(), 254);
 		
 		System.out.println();
 		
@@ -58,6 +51,7 @@ public class Main {
 		simulate_index_join(new LoveHateReplacementPolicy(), 254);
 		simulate_index_join(new LRUReplacementPolicy(), -1);
 		simulate_index_join(new ClockReplacementPolicy(), -1);
+		simulate_index_join(new LoveClockReplacementPolicy(), 254);
 		
 		
 		System.out.println();
