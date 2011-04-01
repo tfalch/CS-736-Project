@@ -39,6 +39,7 @@ public class Main {
 		simulate_block_join(new LRUReplacementPolicy(), -1);
 		simulate_block_join(new ClockReplacementPolicy(), -1);
 		simulate_block_join(new LoveClockReplacementPolicy(), 254);
+		simulate_block_join(new MultiLevelQueueReplacementPolicy(), 254);
 		
 		System.out.println();
 		
@@ -52,6 +53,7 @@ public class Main {
 		simulate_index_join(new LRUReplacementPolicy(), -1);
 		simulate_index_join(new ClockReplacementPolicy(), -1);
 		simulate_index_join(new LoveClockReplacementPolicy(), 254);
+		simulate_index_join(new MultiLevelQueueReplacementPolicy(), 254);
 		
 		
 		System.out.println();
