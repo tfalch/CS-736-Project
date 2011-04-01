@@ -122,6 +122,18 @@ public class MemoryManager {
 		
 	}
 	
+	public double getMissRatio(){
+		long hit = 0;
+		long miss = 0;
+		
+		for (MemoryPage page : this.disk.values()) {
+			hit += page.hits();
+			miss += page.misses();
+		}
+		
+		return (double)miss/hit;
+	}
+	
 	public void stats() {
 		Integer [] addresses = this.disk.keySet().toArray(new Integer[0]);
 		
