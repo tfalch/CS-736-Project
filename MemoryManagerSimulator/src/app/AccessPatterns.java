@@ -65,10 +65,11 @@ public class AccessPatterns {
 			
 			for (int j = S[0]; j < S[1]; j++) {
 				this.m.access(j);
+				
 				/* compare records in R & S */
 				for (int b = n; b < i; b++) {
-					this.m.access(j);
 					this.m.access(b);
+					this.m.access(j);
 				}
 			}
 			

@@ -107,13 +107,7 @@ public class MemoryManager implements IMemoryManager {
 	public void hate(int page, int l) {
 		try {
 			this.policy.hate(getFromMemory(page), l); 
-		} catch (NullPointerException e) {
-			for (int i = 0; i < this.memory.length; i++) {
-				System.err.println(i + ": " + this.memory[i] + "");
-			}
-			
-			System.err.println("looking for: " + page);
-			throw e;
+		} catch (NullPointerException e) {			
 		}
 	}
 	

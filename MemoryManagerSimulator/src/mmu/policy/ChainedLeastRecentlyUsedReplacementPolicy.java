@@ -2,6 +2,8 @@ package mmu.policy;
 
 import java.util.HashMap;
 
+import util.Coordinator;
+
 import mmu.MemoryPage;
 
 public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplacementPolicy {
@@ -112,7 +114,7 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 		
 		public MemoryPage evict() {
 			
-			 long min = System.currentTimeMillis() + 1000; 
+			 long min = Coordinator.currentSequence() + 1; 
 			 MemoryPage page = null;
 			 
 			 // force eviction of non-anchor node or anchor node if no other
@@ -131,7 +133,7 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 			 }
 			 
 			 if (this.anchored && this.head != null) {
-				 this.head.time = System.currentTimeMillis();
+				 this.head.time = Coordinator.nextSequence();
 			 }
 			 
 			 this.unlink(page);
@@ -281,7 +283,7 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 	private int sample = 0;
 	public MemoryPage findPageToEvict(MemoryPage [] pages) {
 		
-		long min = System.currentTimeMillis() + 1000;
+		long min = Coordinator.currentSequence() + 1;
 		Integer id = null;
 		MemoryPage pg = null;
 			

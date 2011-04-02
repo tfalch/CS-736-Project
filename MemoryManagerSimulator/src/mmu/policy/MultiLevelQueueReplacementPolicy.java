@@ -1,5 +1,6 @@
 package mmu.policy;
 
+import util.Coordinator;
 import mmu.MemoryPage;
 
 public class MultiLevelQueueReplacementPolicy implements IPageReplacementPolicy{
@@ -17,7 +18,7 @@ public class MultiLevelQueueReplacementPolicy implements IPageReplacementPolicy{
 		}
 		
 		
-		long minTime = System.currentTimeMillis() + 1000;
+		long minTime = Coordinator.currentSequence() + 1;
 		MemoryPage pageToEvict = null;
 		
 		for(MemoryPage page: pages){
@@ -43,7 +44,7 @@ public class MultiLevelQueueReplacementPolicy implements IPageReplacementPolicy{
 	}
 	
 	private void reduceLoveQueue(MemoryPage[] pages){
-		long minTime = System.currentTimeMillis() + 1000;
+		long minTime = Coordinator.currentSequence() + 1;
 		MemoryPage pageToEvict = null;
 		
 		for(MemoryPage page: pages){

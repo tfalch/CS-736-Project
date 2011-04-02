@@ -23,10 +23,10 @@ public class Main {
 		for(int i = 0; i < noOfRuns; i++){
 			long start = System.currentTimeMillis();
 			MemoryManager m = new MemoryManager(p, 30);
-			new AccessPatterns(m).trace_block_join(l, 125, 500);
+			new AccessPatterns(m).trace_block_join(l, 35, 50, 0); //365, 13530, 0);
 			long end = System.currentTimeMillis();
 			
-			if(verbose){
+			if(verbose || true){
 				System.out.print(p.name() + ": ");
 				System.out.print("duration=" + (end - start) + ";"); m.summary();
 			}
@@ -109,16 +109,13 @@ public class Main {
 		
 		
 		ChainedLeastRecentlyUsedReplacementPolicy clru = new ChainedLeastRecentlyUsedReplacementPolicy();
-		/*simulate_block_join(clru, clru.love().id(), false);
+		simulate_block_join(clru, clru.love().id(), false);
 		simulate_block_join(new LoveHateReplacementPolicy(), 254, false);
 		simulate_block_join(new LRUReplacementPolicy(), -1, false);
 		simulate_block_join(new ClockReplacementPolicy(), -1, false);
-		*/
 		simulate_block_join(new LoveClockReplacementPolicy(), 254, false);
 		simulate_block_join(new MultiLevelQueueReplacementPolicy(), 254, false);
 		Main.simulate_block_join();
-		
-		System.out.println();
 		
 		System.out.println("\t\t===================================================");
 		System.out.println("\t\t\t       Simulating Index Join");

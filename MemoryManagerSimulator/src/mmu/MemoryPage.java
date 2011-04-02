@@ -1,5 +1,7 @@
 package mmu;
 
+import util.Coordinator;
+
 public class MemoryPage {
 
 	private enum Counters {
@@ -25,12 +27,12 @@ public class MemoryPage {
 	
 	public void updateLoadStats() {
 		this.stats[Counters.MISS.ordinal()]++;
-		this.time = System.currentTimeMillis();
+		this.time = Coordinator.nextSequence();
 	}
 	
 	public void updateRefStats() {
 		stats[Counters.HIT.ordinal()]++;
-		time = System.currentTimeMillis();
+		time = Coordinator.nextSequence();
 		referenced = true;
 	}
 	

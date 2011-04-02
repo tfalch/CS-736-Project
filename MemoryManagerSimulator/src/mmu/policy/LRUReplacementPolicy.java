@@ -1,5 +1,6 @@
 package mmu.policy;
 
+import util.Coordinator;
 import mmu.MemoryPage;
 
 public class LRUReplacementPolicy implements IPageReplacementPolicy {
@@ -10,7 +11,7 @@ public class LRUReplacementPolicy implements IPageReplacementPolicy {
 	
 	@Override
 	public MemoryPage findPageToEvict(MemoryPage[] pages) {
-		long min = System.currentTimeMillis() + 1000;
+		long min = Coordinator.currentSequence() + 1;
 		MemoryPage evicted = null;
 		
 		for (MemoryPage memoryPage : pages) {

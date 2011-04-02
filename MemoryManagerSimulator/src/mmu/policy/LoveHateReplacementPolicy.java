@@ -1,5 +1,6 @@
 package mmu.policy;
 
+import util.Coordinator;
 import mmu.MemoryPage;
 
 
@@ -13,7 +14,7 @@ public class LoveHateReplacementPolicy implements IPageReplacementPolicy {
 	
 	public MemoryPage findPageToEvict(MemoryPage [] pages) {
 		
-		long minTime = System.currentTimeMillis() + 1000;
+		long minTime = Coordinator.currentSequence() + 1;
 		long lruMinTime = minTime;
 		int minLove = Integer.MAX_VALUE;
 		
