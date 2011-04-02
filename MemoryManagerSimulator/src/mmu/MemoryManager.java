@@ -10,7 +10,7 @@ public class MemoryManager implements IMemoryManager {
 	protected IPageReplacementPolicy policy;
 	private int size;
 	protected MemoryPage[] memory;
-	private int memoryPointer = 0;
+	protected int memoryPointer = 0;
 	private HashMap<Integer, MemoryPage> disk = new HashMap<Integer, MemoryPage>();
 	
 	public MemoryManager(IPageReplacementPolicy policy, int size) {
@@ -70,7 +70,7 @@ public class MemoryManager implements IMemoryManager {
 	}
 	
 	protected boolean isFull() {
-		return this.memoryPointer > this.memory.length;
+		return this.memoryPointer >= this.memory.length;
 	}
 	
 	protected MemoryPage getFromMemory(int address){
@@ -80,6 +80,10 @@ public class MemoryManager implements IMemoryManager {
 					return p;
 		}
 		return null;
+	}
+	
+	protected void addToMemory(int position, MemoryPage p) {	
+		memory[position] = p;
 	}
 	
 	protected int evict(MemoryPage page){

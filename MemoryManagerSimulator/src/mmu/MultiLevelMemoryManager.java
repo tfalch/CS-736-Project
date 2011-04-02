@@ -42,15 +42,19 @@ public class MultiLevelMemoryManager extends MemoryManager {
 		if (page == null) {
 			if (super.isFull()) { // (this.memory.size() >= this.size) {
 				chain = this.evict_page();
-				page = chain.evict();
+				page = chain.evict(); 
 				position = super.evict(page); //this.memory.remove(page.address);
+			} else {
+				position = memoryPointer++;
 			}
 			
 			page = super.getFromDisk(address); // this.get(address);
 			page.updateLoadStats();
 			page.updateRefStats();
 			
-			super.memory[position] = page; //  this.memory.put(address, page);
+			super.addToMemory(position, page);
+			//this.memory.put(address, page);
+			
 			this.policy.love(page, this.default_chain.id());
 		} else {
 			page.updateRefStats();
