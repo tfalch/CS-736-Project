@@ -1,4 +1,6 @@
-package mmu;
+package mmu.policy;
+
+import mmu.MemoryPage;
 
 public class LRUReplacementPolicy implements IPageReplacementPolicy {
 

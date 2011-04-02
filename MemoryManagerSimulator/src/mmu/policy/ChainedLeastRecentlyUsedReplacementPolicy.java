@@ -1,6 +1,8 @@
-package mmu;
+package mmu.policy;
 
 import java.util.HashMap;
+
+import mmu.MemoryPage;
 
 public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplacementPolicy {
 	
@@ -69,6 +71,11 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 				
 				this.remove_link(tmp);
 			}
+						
+			this.head = null;
+			this.tail = null;
+			this.anchor = null;
+			this.size = 0;
 		}
 		
 		private void unlink(MemoryPage page) {

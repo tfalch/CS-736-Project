@@ -1,4 +1,6 @@
-package mmu;
+package mmu.policy;
+
+import mmu.MemoryPage;
 
 
 public class LoveHateReplacementPolicy implements IPageReplacementPolicy {	
@@ -15,7 +17,7 @@ public class LoveHateReplacementPolicy implements IPageReplacementPolicy {
 		long lruMinTime = minTime;
 		int minLove = Integer.MAX_VALUE;
 		
-		MemoryPage evitedBlock = null;
+		MemoryPage evictedBlock = null;
 		MemoryPage lruEvictedBlock = null;
 		
 		for (MemoryPage block : pages) {
@@ -24,7 +26,7 @@ public class LoveHateReplacementPolicy implements IPageReplacementPolicy {
 			if(block.love < minLove || block.love == minLove && block.time < minTime){
 				minTime = block.time;
 				minLove = block.love;
-				evitedBlock = block;
+				evictedBlock = block;
 			}
 			
 			//Keep track of the actually least recently used, ignoring love
@@ -37,11 +39,11 @@ public class LoveHateReplacementPolicy implements IPageReplacementPolicy {
 		
 		//If the evicted block is more recently used than some other block,
 		//the other block was protected by love, and its love should be decreased
-		if(lruEvictedBlock.time < evitedBlock.time){
+		if(lruEvictedBlock.love != PIN_LEVEL && lruEvictedBlock.time < evictedBlock.time){
 			lruEvictedBlock.love--;
 		}
 	
-		return evitedBlock;
+		return evictedBlock;
 	}
 	
 	public void love(MemoryPage page, int level) {

@@ -3,6 +3,13 @@ import java.io.IOException;
 import java.text.DecimalFormat;
 
 import mmu.*;
+import mmu.policy.ChainedLeastRecentlyUsedReplacementPolicy;
+import mmu.policy.ClockReplacementPolicy;
+import mmu.policy.IPageReplacementPolicy;
+import mmu.policy.LRUReplacementPolicy;
+import mmu.policy.LoveClockReplacementPolicy;
+import mmu.policy.LoveHateReplacementPolicy;
+import mmu.policy.MultiLevelQueueReplacementPolicy;
 
 public class Main {	
 	

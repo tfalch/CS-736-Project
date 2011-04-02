@@ -3,6 +3,8 @@ package mmu;
 import java.text.DecimalFormat;
 import java.util.*;
 
+import mmu.policy.IPageReplacementPolicy;
+
 public class MemoryManager {
 
 	private IPageReplacementPolicy policy;

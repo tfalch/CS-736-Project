@@ -2,7 +2,7 @@ package app;
 
 import java.util.Random;
 
-import mmu.MemoryManager;
+import mmu.MemoryManager;;
 
 public class AccessPatterns {
 
@@ -22,22 +22,22 @@ public class AccessPatterns {
 		
 		int [] R = {0, r}; // R relation block ids.
 		int [] S = {r + s, r + s + s}; // S relation block ids.
-		
+		 
 		for (int i = R[0]; i < R[1]; ) {
-			int n = 0;
+			int n = i;
 			
 			/* simulate retrieving R blocks from disk into memory */
 			for (int j = 0; j < this.m.capacity() - 1 && i < R[1]; j++, i++) {
 				this.m.access(i);
 				this.m.love(i, l);
-				n++;
 			}
-
+			
 			for (int j = S[0]; j < S[1]; j++) {
+				this.m.access(j);
 				/* compare records in R & S */
-				for (int k = 1; k <= n; k++) {
+				for (int b = n; b < i; b++) {
 					this.m.access(j);
-					this.m.access(i-k);
+					this.m.access(b);
 				}
 			}
 			

@@ -9,13 +9,13 @@ public class MemoryPage {
 	};
 	
 	int address;
-	int love;
-	long time;
-	boolean referenced;
+	public int love;
+	public long time;
+	public boolean referenced;
 	
-	int link = -1;
-	MemoryPage next = null;
-	MemoryPage prev = null;
+	public int link = -1;
+	public MemoryPage next = null;
+	public MemoryPage prev = null;
 	
 	private int [] stats = {0,0,0,0};
 	
