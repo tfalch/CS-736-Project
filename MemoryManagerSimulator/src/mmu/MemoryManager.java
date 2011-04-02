@@ -5,11 +5,11 @@ import java.util.*;
 
 import mmu.policy.IPageReplacementPolicy;
 
-public class MemoryManager {
+public class MemoryManager implements IMemoryManager {
 
-	private IPageReplacementPolicy policy;
+	protected IPageReplacementPolicy policy;
 	private int size;
-	private MemoryPage[] memory;
+	protected MemoryPage[] memory;
 	private int memoryPointer = 0;
 	private HashMap<Integer, MemoryPage> disk = new HashMap<Integer, MemoryPage>();
 	
@@ -19,7 +19,7 @@ public class MemoryManager {
 		memory = new MemoryPage[size];
 	}
 	
-	private MemoryPage getFromDisk(int address) {
+	protected MemoryPage getFromDisk(int address) {
 		MemoryPage p = this.disk.get(address);
 		if (p == null) {
 			this.disk.put(address, p = new MemoryPage(address));
@@ -69,7 +69,11 @@ public class MemoryManager {
 		}
 	}
 	
-	private MemoryPage getFromMemory(int address){
+	protected boolean isFull() {
+		return this.memoryPointer > this.memory.length;
+	}
+	
+	protected MemoryPage getFromMemory(int address){
 		for(MemoryPage p: memory){
 			if(p != null)
 				if(p.address == address)
@@ -78,7 +82,7 @@ public class MemoryManager {
 		return null;
 	}
 	
-	private int evict(MemoryPage page){
+	protected int evict(MemoryPage page){
 		for(int i = 0; i < memory.length; i++){
 			if(memory[i] != null){
 				if(memory[i].address == page.address)
@@ -97,7 +101,16 @@ public class MemoryManager {
 	}
 	
 	public void hate(int page, int l) {
-		this.policy.hate(getFromMemory(page), l);
+		try {
+			this.policy.hate(getFromMemory(page), l); 
+		} catch (NullPointerException e) {
+			for (int i = 0; i < this.memory.length; i++) {
+				System.err.println(i + ": " + this.memory[i] + "");
+			}
+			
+			System.err.println("looking for: " + page);
+			throw e;
+		}
 	}
 	
 	public int capacity() {

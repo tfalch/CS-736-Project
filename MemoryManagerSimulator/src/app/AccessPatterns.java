@@ -18,8 +18,39 @@ public class AccessPatterns {
 	 * @param r - # of blocks in R-relation (r << s).
 	 * @param s - # of blocks in S-relation (s >> r).
 	 */
-	public void trace_block_join(int l, int r, int s) {
 		
+	public void trace_block_join(int l, int r, int s) {		
+		
+		int [] R = {0, r}; // R relation block ids.		
+		int [] S = {r + s, r + s + s}; // S relation block ids.
+		
+		for (int i = R[0]; i < R[1]; ) {			
+			int n = 0;			
+			
+			/* simulate retrieving R blocks from disk into memory */	
+			for (int j = 0; j < this.m.capacity() - 1 && i < R[1]; j++, i++) {	
+				this.m.access(i);			
+				this.m.love(i, l);			
+				n++;			
+			}			
+			
+			for (int j = S[0]; j < S[1]; j++) {		
+				/* compare records in R & S */			
+				for (int k = 1; k <= n; k++) {		
+					this.m.access(j);				
+					this.m.access(i-k);			
+				}		
+			}		
+			
+			/* hate pages to flush from cash */		
+			for (int k = 1; k <= n; k++) {	
+				this.m.hate(i-k, 0);		
+			}		
+		}	
+	}
+	
+	public void trace_block_join(int l, int r, int s, int q) {
+
 		int [] R = {0, r}; // R relation block ids.
 		int [] S = {r + s, r + s + s}; // S relation block ids.
 		 

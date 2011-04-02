@@ -89,19 +89,34 @@ public class Main {
 		System.out.println();
 	}
 	
+	private static void simulate_block_join() {
+
+		long start = System.currentTimeMillis();
+		MultiLevelMemoryManager m = new MultiLevelMemoryManager(30);
+		new AccessPatterns(m).trace_block_join(m.chain().id(), 365, 13530);
+		long end = System.currentTimeMillis();
+		
+		System.out.print("MLMU: ");
+		System.out.print("duration=" + (end - start) + ";"); m.summary();
+	}
+
+	
 	public static void run() {
 		
 		System.out.println("\t\t===================================================");
 		System.out.println("\t\t\t   Simulating Nested Block Join");
 		System.out.println("\t\t===================================================");		
 		
+		
 		ChainedLeastRecentlyUsedReplacementPolicy clru = new ChainedLeastRecentlyUsedReplacementPolicy();
-		simulate_block_join(clru, clru.love().id(), false);
+		/*simulate_block_join(clru, clru.love().id(), false);
 		simulate_block_join(new LoveHateReplacementPolicy(), 254, false);
 		simulate_block_join(new LRUReplacementPolicy(), -1, false);
 		simulate_block_join(new ClockReplacementPolicy(), -1, false);
+		*/
 		simulate_block_join(new LoveClockReplacementPolicy(), 254, false);
 		simulate_block_join(new MultiLevelQueueReplacementPolicy(), 254, false);
+		Main.simulate_block_join();
 		
 		System.out.println();
 		

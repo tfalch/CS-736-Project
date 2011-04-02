@@ -42,6 +42,10 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 			return this.id;
 		}
 		
+		public int size() {
+			return this.size;
+		}
+		
 		/**
 		 * set whether the chain's time stamp is updated on removal of a link. 
 		 * @param flag indicates if anchoring is enabled or not.
@@ -106,7 +110,7 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 			}
 		}
 		
-		private MemoryPage evict() {
+		public MemoryPage evict() {
 			
 			 long min = System.currentTimeMillis() + 1000; 
 			 MemoryPage page = null;
@@ -172,7 +176,7 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 			return false;
 		}
 		
-		private long timestamp(int sample) {
+		public long timestamp(int sample) {
 			
 			if (this.sample == sample) {
 				return this.timestamp;
