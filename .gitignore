@@ -1,8 +1,8 @@
 #ignore bin files
 MemoryManagerSimulator/bin/
+*/bin/*
 *.class
 *.o
 *.jar
 */bin/*
-.*
 *~
