@@ -97,4 +97,31 @@ public class AccessPatterns {
 		
 		this.mem_mgr.releaseMemoryChain(chain);
 	}
+	
+	/**
+	 * simulates naive matrix multiplication. used for benchmarking
+	 * various approaches.
+	 * @param m m dimension of matrix.
+	 * @param n n dimension of matrix.
+	 */
+	public void trace_naive_matrix_multiplication(int m, int n) {
+		MemoryChain chain = this.mem_mgr.createMemoryChain();
+		
+		for (int i = 0; i < n; i++) {
+			for (int j = 0; j < m; j++) {
+				for (int k = 0; k < n; k++) {
+					
+					int A = i * n + k;
+					int B = j * n + k + (m * n);
+					
+					this.mem_mgr.access(A);
+					if (j == 0)
+						this.mem_mgr.link(chain, A);
+					this.mem_mgr.access(B);
+				}
+			}
+			
+			this.mem_mgr.breakMemoryChain(chain);
+		}
+	}
 }

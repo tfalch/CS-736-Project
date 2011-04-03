@@ -19,7 +19,9 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 	private int chain_id = 0;
 	private MemoryChain [] sys_chains = new MemoryChain[3];
 	private HashMap<Integer, MemoryChain> usr_chains = new HashMap<Integer, MemoryChain>();
-	private HashMap<Integer, Page> pages = new HashMap<Integer, Page>();
+	
+	private Memory memory = null;
+	private PageTable pageTable = new PageTable();
 	
 	/**
 	 * Creates and initializes a new instance.
@@ -31,6 +33,8 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 		for (SystemQueue q : SystemQueue.values()) {
 			this.sys_chains[q.ordinal()] = new MemoryChain(this.chain_id++);
 		}
+		
+		this.memory = new Memory(size);
 	}
 	
 	private boolean is_sys_mem_chain(int chain) {
@@ -96,7 +100,8 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 		}
 		
 		chain.unlink(page);
-		this.pages.remove(page.address);
+		this.memory.store(null, page.frame);
+		this.pageTable.remove(page.address);
 	}
 	
 	/* (non-Javadoc)
@@ -113,18 +118,23 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 	@Override
 	public void access(int address) {
 
-		Page page = this.pages.get(address);
+		int frame = this.pageTable.lookup(address);  
+		Page page = null;
 		
-		if (page == null) { /* page fault */
-			if (this.pages.size() >= this.size) {
+		if (frame == -1) { /* page fault */
+			
+			frame = this.memory.free_frame();
+			if (frame == -1) {
 				this.evict();
+				frame = this.memory.free_frame();
 			}
 			
 			page = this.load(address);
 			page.load();
 			page.ref();
 			
-			this.pages.put(address, page);
+			this.memory.store(page, frame);
+			this.pageTable.add(page.address, frame);
 			
 			/* re-establish externally broken links. */
 			if (page.assigned != -1) {
@@ -137,7 +147,8 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 				this.sys_chains[SystemQueue.DEFAULT.ordinal()].link(page);
 			}
 			
-		} else {
+		} else {	
+			page = this.memory.load(frame);
 			page.ref();
 		}
 		
@@ -181,8 +192,8 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 	 */
 	@Override
 	public void link(MemoryChain chain, int address) {
-		Page page = this.pages.get(address);
 		
+		Page page = this.memory.load(this.pageTable.lookup(address));
 		if (page.resides != -1) {
 			if (this.is_sys_mem_chain(page.resides)) {
 				this.sys_chains[page.resides].unlink(page);
@@ -190,13 +201,14 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 				this.usr_chains.get(page.resides).unlink(page);
 			}
 		}
-		
+			
 		page.assigned = chain.id();
 		page = chain.link(page);
 		if (page != null) {
 			this.sys_chains[SystemQueue.SPILLOVER.ordinal()].link(page);
 			page.assigned = SystemQueue.DEFAULT.ordinal(); /* re-assign page to default queue. */
 		}
+		
 	}
 
 	/* (non-Javadoc)
@@ -204,8 +216,8 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 	 */
 	@Override
 	public void anchor(MemoryChain chain, int address) {
-		Page p = this.pages.get(address);
 		
+		Page p = this.memory.load(this.pageTable.lookup(address));
 		if (this.is_sys_mem_chain(p.resides)) {
 			this.sys_chains[p.resides].unlink(p);
 		} else if (p.resides != -1 && chain.id() != p.resides) {
@@ -225,11 +237,13 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 	 */
 	@Override
 	public void unlink(int address) {
-		Page page = this.pages.get(address);
 		
-		if (page != null) {
+		int frame = this.pageTable.lookup(address);
+		if (frame != -1) {
+			Page page = this.memory.load(frame);
 			MemoryChain chain = this.is_sys_mem_chain(page.resides) ? this.sys_chains[page.resides] :
 				this.usr_chains.get(page.resides);
+			
 			if (chain != this.sys_chains[SystemQueue.HATED.ordinal()]) {
 				chain.unlink(page);
 				page.assigned = SystemQueue.DEFAULT.ordinal();

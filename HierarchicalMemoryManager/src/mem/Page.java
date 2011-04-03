@@ -11,7 +11,9 @@ public class Page {
 	};
 	
 	int address = 0;
+	int frame = 0;
 	long timestamp = 0;
+	boolean refrenced = false;
 	
 	int resides = -1;   // residing memory chain
 	int assigned = -1;  // assigned memory chain.
@@ -32,6 +34,7 @@ public class Page {
 	public void ref() {
 		this.stats[Counter.HIT.ordinal()]++;
 		this.timestamp = Coordinator.clock.generate();
+		this.refrenced = true;
 	}
 	
 	public void evict() {

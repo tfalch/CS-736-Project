@@ -4,7 +4,8 @@ public class Experiment {
 	
 	public enum Trace {
 		BLOCK_JOIN ("Nested Block Join"),
-		INDEX_JOIN ("Index Join");
+		INDEX_JOIN ("Index Join"),
+		MATRIX_MULTIPLICATON("Naive Matrix Multiplication");
 		
 		String name;
 		Trace(String name) {
@@ -27,6 +28,12 @@ public class Experiment {
 		MEMORY_SIZE,
 		BLOCK_SIZE_R,
 		BLOCK_SIZE_S
+	};
+	
+	public enum MatrixMultiplicationArgument {
+		MEMORY_SIZE,
+		M,
+		N
 	};
 	
 	Trace traceToRun;
