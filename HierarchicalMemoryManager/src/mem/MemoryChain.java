@@ -16,9 +16,8 @@ public class MemoryChain implements Iterable<Page> {
 	private Page head = null;
 	private Page tail = null;
 	
-	Page victim = null;
 	private long timestamp = 0; // chain's timestamp.
-	private int sample = 0; // timestamp's sample #. 
+	private Page representative = null;
 	
 	/**
 	 * Creates a new instance of an unbounded memory chain.
@@ -167,8 +166,12 @@ public class MemoryChain implements Iterable<Page> {
 				 this.anchor = null;
 			 }
 			 
-			 this.reset(page);
+			 if (this.representative == page) {
+				 this.representative = null;
+			 }
 			 
+			 this.reset(page);
+
 			 this.size--;	 
 		}
 	}
@@ -250,6 +253,7 @@ public class MemoryChain implements Iterable<Page> {
 		}
 		
 		page.resides = this.id;
+		this.representative(page);
 		
 		return evicted;
 	}
@@ -267,39 +271,65 @@ public class MemoryChain implements Iterable<Page> {
 	}
 	
 	/**
-	 * Gets the effective time stamp of the memory chain.  
-	 * @param sample non-decreasing sequence number.
-	 * @return Chain's effective time stamp.
+	 * Gets the effective time stamp for the memory chain.
+	 * @return effective time stamp.
 	 */
-	long timestamp(int sample) {
+	long timestamp() {
+		/* determine if time stamp is valid. */
+		if (this.representative == null) {
+			this.timestamp = 0;
+			for (Page h = this.head, t = this.tail; h != null && h.prev != t; h = h.next, t = t.prev) {
+				
+				if (h.timestamp > this.timestamp) {
+					this.timestamp = h.timestamp;
+					this.representative = h;
+				}
+				
+				if (t.timestamp > this.timestamp) {
+					this.timestamp = t.timestamp;
+					this.representative = t;
+				}
+			}
+		}
+		return this.timestamp;
+	}
+	
+	/**
+	 * Sets the chain's representative. i.e. the member with the largest
+	 * time stamp. If the page is not a member of the chain, or the time 
+	 * stamp is lower than the current value, the value is ignored.
+	 * @param page representative value.
+	 */
+	void representative(Page page) {
+		if (page.timestamp > this.timestamp && page.resides == this.id) {
+			this.timestamp = page.timestamp;
+			this.representative = page;
+		}
+	}
+	
+	/**
+	 * Gets a page to be selected as a victim for potential
+	 * eviction. 
+	 * @return victim page.
+	 */
+	Page victim() {
 		
 		long minimum = Coordinator.clock.current() + 1;
-		
-		if (this.sample == sample) {
-			return this.timestamp;
-		}
-		
-		this.victim = null;
+		Page victim = null;
 		
 		for (Page h = this.head, t = this.tail; h != null && h.prev != t; h = h.next, t = t.prev) {
-		
-			if (h.timestamp > this.timestamp) {
-				this.timestamp = h.timestamp;
-			} else if (h.timestamp < minimum) {
+			if (h.timestamp < minimum) {
 				minimum = h.timestamp;
-				this.victim = h;
+				victim = h;
 			}
 			
-			if (t.timestamp > this.timestamp) {
-				this.timestamp = t.timestamp;
-			} else if (t.timestamp < minimum) {
+			if (t.timestamp < minimum) {
 				minimum = t.timestamp;
-				this.victim = t;
+				victim = t;
 			} 
 		}
 		
-		this.sample = sample;
-		return this.timestamp;
+		return victim;
 	}
 
 	@Override

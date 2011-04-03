@@ -58,7 +58,6 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 		return p;
 	}
 	
-	private int eviction_notice = 0;
 	private void evict() {
 		
 		long minimum = Coordinator.clock.current() + 1;
@@ -78,7 +77,6 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 				}
 			}
 		} else {
-			this.eviction_notice++;
 			
 			for (Page p : this.sys_chains[SystemQueue.DEFAULT.ordinal()]) {
 				if (p.timestamp < minimum) {
@@ -89,9 +87,9 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 			}
 			
 			for (MemoryChain c : this.usr_chains.values()) {
-				if (c.size() > 0 && c.timestamp(this.eviction_notice) < minimum) {
-					page = c.victim;
-					minimum = c.timestamp(this.eviction_notice);
+				if (c.size() > 0 && c.timestamp() < minimum) {
+					page = c.victim();
+					minimum = c.timestamp();
 					chain = c;
 				}
 			}
@@ -141,6 +139,10 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 			
 		} else {
 			page.ref();
+		}
+		
+		if (this.is_usr_mem_chain(page.resides)) {
+			this.usr_chains.get(page.resides).representative(page);
 		}
 	}
 

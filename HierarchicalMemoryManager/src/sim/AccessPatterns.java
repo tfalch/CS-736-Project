@@ -44,7 +44,7 @@ public class AccessPatterns {
 					this.mem_mgr.access(b);
 					this.mem_mgr.access(j);
 				}
-				
+
 				this.mem_mgr.unlink(j);
 			}
 			
@@ -84,7 +84,10 @@ public class AccessPatterns {
 				block = branch / f;
 				
 				this.mem_mgr.access(block); // read next node.
-				this.mem_mgr.link(chain, block);
+				if (j == 1)
+					this.mem_mgr.link(chain, block);
+				else 
+					this.mem_mgr.unlink(block);
 			}
 			
 			// last branch is record id.
