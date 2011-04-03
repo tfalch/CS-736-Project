@@ -51,7 +51,7 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 		}
 		
 		try {
-			Thread.sleep(1);
+			Thread.sleep(0);
 		} catch (InterruptedException e) {
 		}
 		

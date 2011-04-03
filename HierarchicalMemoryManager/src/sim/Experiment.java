@@ -43,7 +43,7 @@ public class Experiment {
 	public Experiment(Trace traceToRun, int noOfRuns, int [] arguments) {
 		this.traceToRun = traceToRun;
 		this.noOfRuns = noOfRuns;
-		this.arguments = arguments;
+		this.arguments = arguments.clone();
 	}
 	
 	public Trace traceToRun() {
