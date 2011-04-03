@@ -5,4 +5,6 @@ MemoryManagerSimulator/bin/
 *.o
 *.jar
 */bin/*
+.metadata
 *~
+*#*#
