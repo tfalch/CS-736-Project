@@ -1,6 +1,10 @@
-package mmu;
+package mmu.policy;
 
 import java.util.HashMap;
+
+import util.Coordinator;
+
+import mmu.MemoryPage;
 
 public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplacementPolicy {
 	
@@ -14,6 +18,9 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 		private MemoryPage anchor = null; // last node to be evicted from chain
 		private MemoryPage head = null;
 		private MemoryPage tail = null;
+		
+		private long timestamp = 0; // chain's timestamp.
+		private int sample = 0; // timestamp's sample #. 
 		
 		private Chain(int id) {
 			this(id, false);
@@ -37,9 +44,12 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 			return this.id;
 		}
 		
+		public int size() {
+			return this.size;
+		}
+		
 		/**
-		 * set whether the chain's time stamp is updated on a link
-		 * being evicted. 
+		 * set whether the chain's time stamp is updated on removal of a link. 
 		 * @param flag indicates if anchoring is enabled or not.
 		 */
 		public void anchored(boolean flag) {
@@ -54,19 +64,28 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 			return this.anchored;
 		}
 		
+		private void remove_link(MemoryPage page) {
+			page.prev = null;
+			page.next = null;
+			page.link = -1;
+		}
+		
 		private void unchain() {
 			for (MemoryPage p = this.head; p != null; ) {
 				MemoryPage tmp = p;
 				p = p.next;
 				
-				tmp.prev = null;
-				tmp.next = null;
-				tmp.link = -1;
+				this.remove_link(tmp);
 			}
+						
+			this.head = null;
+			this.tail = null;
+			this.anchor = null;
+			this.size = 0;
 		}
 		
 		private void unlink(MemoryPage page) {
-			if (page != null) {
+			if (page != null && page.link != -1) {
 				 if (page.prev == null) { // head of list
 					 this.head = page.next;
 					 if (this.head != null) {
@@ -86,19 +105,16 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 				 if (this.anchor == page) {
 					 this.anchor = null;
 				 }
-				  
-				 page.link = -1;
-				 page.prev = null;
-				 page.next = null;
 				 
+				 this.remove_link(page);
 				 
 				 this.size--;	 
-			 }
+			}
 		}
 		
-		private MemoryPage evict() {
+		public MemoryPage evict() {
 			
-			 long min = System.currentTimeMillis() + 1000; 
+			 long min = Coordinator.currentSequence() + 1; 
 			 MemoryPage page = null;
 			 
 			 // force eviction of non-anchor node or anchor node if no other
@@ -117,11 +133,11 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 			 }
 			 
 			 if (this.anchored && this.head != null) {
-				 this.head.time = System.currentTimeMillis();
+				 this.head.time = Coordinator.nextSequence();
 			 }
 			 
 			 this.unlink(page);
-			 page.time = min;
+			 page.time = min; 
 			 
 			 return page;
 		}
@@ -132,7 +148,7 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 			if (page.link == this.id) {
 				return true;
 			}
-			
+
 			if (this.size >= this.capacity) {
 				this.evict();
 			}
@@ -162,21 +178,29 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 			return false;
 		}
 		
-		private long timestamp() {
-			long timestamp = 0;
+		public long timestamp(int sample) {
+			
+			if (this.sample == sample) {
+				return this.timestamp;
+			}
 			
 			for (MemoryPage p = this.head; p != null; p = p.next) {
-				if (p.time > timestamp) {
-					timestamp = p.time;
+				if (p.time > this.timestamp) {
+					this.timestamp = p.time;
 				}
 			}
 			
-			return timestamp;
+			this.sample = sample;
+			return this.timestamp;
 		}
 	}
 	
 	private int link_id = 0;
 	private HashMap<Integer, Chain> link_table = new HashMap<Integer, Chain>();
+	
+	public String name() {
+		return "C-LRU";
+	}
 	
 	/**
 	 * creates a new chain
@@ -242,26 +266,33 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 	}
 	
 	public void hate(MemoryPage page) {
-		this.link_table.get(page.link).unchain();
+		if (page.link != -1) {
+			this.link_table.get(page.link).unchain();
+		}
 	}
 	
 	public void hate(MemoryPage page, int link) {
 		this.link_table.get(link).unlink(page);
 	}
 	
-	public MemoryPage evict(MemoryPage [] pages) {
+	public void hate(int link) {
+		this.link_table.get(link).unchain();
+		this.link_table.remove(link);
+	}
+	
+	private int sample = 0;
+	public MemoryPage findPageToEvict(MemoryPage [] pages) {
 		
-		HashMap<Integer, Long> timestamps = new HashMap<Integer, Long>();
-		
-		long min = System.currentTimeMillis() + 1000;
+		long min = Coordinator.currentSequence() + 1;
 		Integer id = null;
 		MemoryPage pg = null;
 			
+		this.sample++;
 		for (MemoryPage p : pages) {
-			
-			if (p.link >= 0 && !timestamps.containsKey(p.link)) {
+
+			if (p.link >= 0) {
 				Chain c = this.link_table.get(p.link);
-				long timestamp = c.timestamp();
+				long timestamp = c.timestamp(this.sample);
 				
 				if (timestamp < min) {
 					min = timestamp;
@@ -269,12 +300,10 @@ public class ChainedLeastRecentlyUsedReplacementPolicy implements IPageReplaceme
 					pg = null;
 				}
 				
-				timestamps.put(p.link, timestamp);
-				
 			} else if (p.link == -1 && p.time <= min) {
 				min = p.time;
 				pg = p;
-				id = null;
+				id = null; 
 			}
 		}
 		

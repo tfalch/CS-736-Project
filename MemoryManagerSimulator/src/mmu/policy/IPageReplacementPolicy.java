@@ -1,8 +1,12 @@
-package mmu;
+package mmu.policy;
+
+import mmu.MemoryPage;
 
 public interface IPageReplacementPolicy {
 
-	public MemoryPage evict(MemoryPage [] pages);
+	public String name();
+	
+	public MemoryPage findPageToEvict(MemoryPage [] pages);
 	
 	public void love(MemoryPage page, int l);
 	public void love(MemoryPage page, int l, boolean pin);

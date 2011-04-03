@@ -1,5 +1,7 @@
 package mmu;
 
+import util.Coordinator;
+
 public class MemoryPage {
 
 	private enum Counters {
@@ -9,12 +11,13 @@ public class MemoryPage {
 	};
 	
 	int address;
-	int love;
-	long time;
+	public int love;
+	public long time;
+	public boolean referenced;
 	
-	int link = -1;
-	MemoryPage next = null;
-	MemoryPage prev = null;
+	public int link = -1;
+	public MemoryPage next = null;
+	public MemoryPage prev = null;
 	
 	private int [] stats = {0,0,0,0};
 	
@@ -22,19 +25,32 @@ public class MemoryPage {
 		this.address = address;
 	}
 	
-	public void load() {
+	public void updateLoadStats() {
 		this.stats[Counters.MISS.ordinal()]++;
-		this.time = System.currentTimeMillis();
+		this.time = Coordinator.nextSequence();
 	}
 	
-	public void ref() {
-		this.stats[Counters.HIT.ordinal()]++;
-		this.time = System.currentTimeMillis();
+	public void updateRefStats() {
+		stats[Counters.HIT.ordinal()]++;
+		time = Coordinator.nextSequence();
+		referenced = true;
 	}
 	
-	public void evict() {
+	public void updateEvictStats() {
 		this.stats[Counters.EVICT.ordinal()]++;
 	} 
+	
+	public int hits() {
+		return this.stats[Counters.HIT.ordinal()];
+	}
+	
+	public int misses() {
+		return this.stats[Counters.MISS.ordinal()];
+	}
+	
+	public int evictions() {
+		return this.stats[Counters.EVICT.ordinal()];
+	}
 	
 	public String toString() {
 		return "0x" + Integer.toHexString(this.address);
