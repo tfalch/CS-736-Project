@@ -4,6 +4,7 @@ import java.util.Random;
 
 import mem.IMemoryManager;
 import mem.MemoryChain;
+import mem.MemoryChain.EvictionPolicy;
 
 public class AccessPatterns {
 
@@ -20,7 +21,7 @@ public class AccessPatterns {
 	 */
 	public void trace_block_join(int r, int s) {
 		
-		MemoryChain chain = this.mem_mgr.createMemoryChain();
+		MemoryChain chain = this.mem_mgr.createMemoryChain(EvictionPolicy.MRU);
 		
 		int [] R = {0, r}; // R relation block #s.
 		int [] S = {r + s, r + s + s}; // S relation block #s.
@@ -68,7 +69,7 @@ public class AccessPatterns {
 		
 		int rcardinality = (int)Math.ceil(n/Math.pow(f, d-1));
 		int capacity = (d+1)*(1+rcardinality+1);
-		MemoryChain chain = this.mem_mgr.createMemoryChain(capacity);
+		MemoryChain chain = this.mem_mgr.createMemoryChain(EvictionPolicy.MRU, capacity);
 		
 		this.mem_mgr.access(0); // load root.
 		this.mem_mgr.anchor(chain, 0);
@@ -105,7 +106,7 @@ public class AccessPatterns {
 	 * @param n n dimension of matrix.
 	 */
 	public void trace_naive_matrix_multiplication(int m, int n) {
-		MemoryChain chain = this.mem_mgr.createMemoryChain();
+		MemoryChain chain = this.mem_mgr.createMemoryChain(EvictionPolicy.MRU);
 		
 		for (int i = 0; i < n; i++) {
 			for (int j = 0; j < m; j++) {

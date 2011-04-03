@@ -1,5 +1,7 @@
 package mem;
 
+import mem.MemoryChain.EvictionPolicy;
+
 public interface IMemoryManager {	
 	
 	/**
@@ -18,24 +20,27 @@ public interface IMemoryManager {
 	
 	/**
 	 * Creates and initializes a new user maintained memory chain.
+	 * @param local eviction policy to be used.
 	 * @return memory chain object.
 	 */
-	public MemoryChain createMemoryChain();
+	public MemoryChain createMemoryChain(EvictionPolicy policy);
 	
 	/**
 	 * Creates a new instance of an unbounded memory chain.
+	 * @param local eviction policy to be used.
 	 * @param capacity max links in memory chain.
 	 * @return memory chain object.
 	 */
-	public MemoryChain createMemoryChain(int capacity);
+	public MemoryChain createMemoryChain(EvictionPolicy policy, int capacity);
 	
 	/**
 	 * Creates a new instance of a bounded memory chain object.
+	 * @param local eviction policy to be used.
 	 * @param capacity max links in memory chain.
 	 * @param anchored flag indicating if the memory chain is anchored or not.
 	 * @return memory chain object.
 	 */
-	public MemoryChain createMemoryChain(int capacity, boolean anchored);
+	public MemoryChain createMemoryChain(EvictionPolicy policy, int capacity, boolean anchored);
 	
 	/**
 	 * Adds a memory page to the specified memory chain. Previously established 

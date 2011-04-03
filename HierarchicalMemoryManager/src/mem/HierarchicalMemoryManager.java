@@ -4,6 +4,8 @@ import java.text.DecimalFormat;
 import java.util.Arrays;
 import java.util.HashMap;
 
+import mem.MemoryChain.EvictionPolicy;
+
 import util.Coordinator;
 
 public class HierarchicalMemoryManager implements IMemoryManager {
@@ -31,7 +33,7 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 		this.size = size;
 		
 		for (SystemQueue q : SystemQueue.values()) {
-			this.sys_chains[q.ordinal()] = new MemoryChain(this.chain_id++);
+			this.sys_chains[q.ordinal()] = new MemoryChain(this.chain_id++, EvictionPolicy.Random);
 		}
 		
 		this.memory = new Memory(size);
@@ -158,32 +160,32 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 	}
 
 	/* (non-Javadoc)
-	 * @see mem.IMemoryManager#createMemoryChain()
+	 * @see mem.IMemoryManager#createMemoryChain(EvictionPolicy)
 	 */
 	@Override
-	public MemoryChain createMemoryChain() {
-		MemoryChain chain = new MemoryChain(this.chain_id++);
+	public MemoryChain createMemoryChain(EvictionPolicy policy) {
+		MemoryChain chain = new MemoryChain(this.chain_id++, policy);
 		this.usr_chains.put(chain.id(), chain);
 		
 		return chain;
 	}
 
 	/* (non-Javadoc)
-	 * @see mem.IMemoryManager#createMemoryChain(int)
+	 * @see mem.IMemoryManager#createMemoryChain(EvictionPolicy, int)
 	 */
 	@Override
-	public MemoryChain createMemoryChain(int capacity) {
-		MemoryChain chain = new MemoryChain(this.chain_id++, capacity);
+	public MemoryChain createMemoryChain(EvictionPolicy policy, int capacity) {
+		MemoryChain chain = new MemoryChain(this.chain_id++, policy, capacity);
 		this.usr_chains.put(chain.id(), chain);
 		
 		return chain;
 	}
 
 	/* (non-Javadoc)
-	 * @see mem.IMemoryManager#createMemoryChain(int, boolean)
+	 * @see mem.IMemoryManager#createMemoryChain(EvictionPolicy, int, boolean)
 	 */
 	@Override
-	public MemoryChain createMemoryChain(int capacity, boolean anchored) {
+	public MemoryChain createMemoryChain(EvictionPolicy policy, int capacity, boolean anchored) {
 		throw new UnsupportedOperationException();
 	}
 

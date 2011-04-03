@@ -1,10 +1,22 @@
 package mem;
 
 import java.util.Iterator;
+import java.util.Random;
 
 import util.Coordinator;
 
 public class MemoryChain implements Iterable<Page> {
+	
+	public enum EvictionPolicy {
+		LRU,
+		MRU,
+		FIFO,
+		Random;
+		
+		/*
+		NFU,
+		*/
+	};
 
 	private int id;
 	private int size = 0;
@@ -19,51 +31,59 @@ public class MemoryChain implements Iterable<Page> {
 	private long timestamp = 0; // chain's timestamp.
 	private Page representative = null;
 	
+	public EvictionPolicy policy = EvictionPolicy.LRU;
+	
 	/**
 	 * Creates a new instance of an unbounded memory chain.
 	 * @param id chain's id.
+	 * @param policy memory chain's local eviction policy.
 	 */
-	public MemoryChain(int id) {
-		this(id, Integer.MAX_VALUE, false, false);
+	public MemoryChain(int id, EvictionPolicy policy) {
+		this(id, policy, Integer.MAX_VALUE, false, false);
 	}
 	
 	/**
 	 * Creates a new instance of an unbounded memory chain
 	 * @param id chain's id.
+	 * @param policy memory chain's local eviction policy.
 	 * @param anchored flag indicating if the memory chain is anchored or not.
 	 */
-	public MemoryChain(int id, boolean anchored) {
-		this(id, Integer.MAX_VALUE, false, false);
+	public MemoryChain(int id, EvictionPolicy policy, boolean anchored) {
+		this(id, policy, Integer.MAX_VALUE, false, false);
 	}
 	
 	/**
 	 * Creates a new instance of a bounded memory chain.
 	 * @param id chain's id.
+	 * @param policy memory chain's local eviction policy.
 	 * @param capacity maximum number of pages that may reside in memory chain.
 	 */
-	public MemoryChain(int id, int capacity) {
-		this(id, capacity, true, false);
+	public MemoryChain(int id, EvictionPolicy policy, int capacity) {
+		this(id, policy, capacity, true, false);
 	}
 	
 	/**
 	 * Creates a new instance of a bounded memory chain.
 	 * @param id chain's id.
+	 * @param policy memory chain's local eviction policy.
 	 * @param capacity maximum number of pages that may reside in memory chain.
 	 * @param anchored flag indicating if the memory chain is anchored or not.
 	 */
-	public MemoryChain(int id, int capacity, boolean anchored) {
-		this(id, capacity, true, anchored);
+	public MemoryChain(int id, EvictionPolicy policy, int capacity, boolean anchored) {
+		this(id, policy, capacity, true, anchored);
 	}	
 	
 	/**
 	 * Creates and initializes a new instance of a memory chain.
 	 * @param id chain's id.
+	 * @param policy memory chain's local eviction policy.
 	 * @param capacity maximum number of pages that may reside in memory chain.
 	 * @param bounded flag indicating if the chain is bounded.
 	 * @param anchored flag indicating if the memory chain is anchored or not.
 	 */
-	private MemoryChain(int id, int capacity, boolean bounded, boolean anchored) {
+	private MemoryChain(int id, EvictionPolicy policy, int capacity, boolean bounded, boolean anchored) {
 		this.id = id;
+		this.policy = policy;
 		this.capacity = capacity;
 		this.bounded = false;
 		this.anchored = anchored;
@@ -177,10 +197,76 @@ public class MemoryChain implements Iterable<Page> {
 	}
 	
 	/**
-	 * Evicts a page from the memory chain.
+	 * Gets the least recently used page.
+	 * @return least recently used page.
+	 */
+	private Page lru() {
+		
+		long min = Coordinator.clock.current() + 1;
+		Page page = null;
+		
+		for (Page h = this.head, t = this.tail; h != null && h.prev != t; h = h.next, t = t.prev) {
+			 
+			 if (h.timestamp <= min && h != this.anchor) {
+				 min = h.timestamp;
+				 page = h;		
+			 }
+			 
+			 if (t.timestamp <= min && t != this.anchor) {
+				 min = t.timestamp;
+				 page = t;		
+			 }
+		 }
+		
+		return page;
+	}
+	
+	/**
+	 * Gets the most recently used page.
+	 * @return most recently used page.
+	 */
+	private Page mru() {
+		
+		long max = 0; 
+		Page page = null;
+		
+		for (Page h = this.head, t = this.tail; h != null && h.prev != t; h = h.next, t = t.prev) {
+			 
+			 if (h.timestamp >= max && h != this.anchor) {
+				 max = h.timestamp;
+				 page = h;		
+			 }
+			 
+			 if (t.timestamp >= max && t != this.anchor) {
+				 max = t.timestamp;
+				 page = t;		
+			 }
+		 }
+		
+		return page;
+	}
+	
+	/**
+	 * Gets a random page.
+	 * @return random page.
+	 */
+	private Page random() {
+		int n = new Random().nextInt(this.size);
+		
+		Page page = this.head;
+		for (int i = 0; i < n; i++) {
+			page = page.next;
+		}
+		
+		return page;
+	}
+	
+	/**
+	 * Evicts a page from the memory chain using the specified local evicition
+	 * policy.
 	 * @return victim page.
 	 */
-	Page evict() { 
+	private Page evict() { 
 		
 		 long min = Coordinator.clock.current() + 1; 
 		 Page page = null;
@@ -192,18 +278,20 @@ public class MemoryChain implements Iterable<Page> {
 		 } else if (this.anchor != null) {
 			 page = this.anchor.prev != null ? this.anchor.prev : this.anchor.next;
 		 }
-		
-		 for (Page h = this.head, t = this.tail; h != null && h.prev != t; h = h.next, t = t.prev) {
-			 
-			 if (h.timestamp <= min && h != this.anchor) {
-				 min = h.timestamp;
-				 page = h;		
-			 }
-			 
-			 if (t.timestamp <= min && t != this.anchor) {
-				 min = t.timestamp;
-				 page = t;		
-			 }
+		 
+		 switch (this.policy) {
+		 case LRU:
+			 page = this.lru();
+			 break;
+		 case MRU:
+			 page = this.mru();
+			 break;
+		 case Random:
+			 page = this.random();
+			 break;
+		 case FIFO:
+			 page = this.tail;
+			 break;
 		 }
 		 
 		 if (this.anchored && this.head != null) {
