@@ -10,8 +10,8 @@ public class Page {
 		EVICT
 	};
 	
-	int address = 0;
-	int frame = 0;
+	int address = 0; // virtual memory address (page level).
+	int frame = 0; // physical memory address / physical frame number.
 	long timestamp = 0;
 	boolean refrenced = false;
 	

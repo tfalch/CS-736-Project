@@ -22,8 +22,9 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 	private MemoryChain [] sys_chains = new MemoryChain[3];
 	private HashMap<Integer, MemoryChain> usr_chains = new HashMap<Integer, MemoryChain>();
 	
-	private Memory memory = null;
-	private PageTable pageTable = new PageTable();
+	private Memory memory = null; // physical memory.
+	private PageTable pageTable = new PageTable(); // page table / virtual memory mapping.
+	private HashMap<Integer, Page> swap = new HashMap<Integer, Page>(); // swap space.
 	
 	/**
 	 * Creates and initializes a new instance.
@@ -48,16 +49,21 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 		return !this.is_sys_mem_chain(chain);
 	}
 	
-	private HashMap<Integer, Page> disk = new HashMap<Integer, Page>();
+	/**
+	 * Simulates page fault. 
+	 * @param address virtual memory address.
+	 * @return Page object.
+	 */
 	private Page load(int address) {
 		
-		Page p = this.disk.get(address);
+		Page p = this.swap.get(address);
+		/* establish virtual memory mapping if page referenced for first time. */
 		if (p == null) {
-			this.disk.put(address, p = new Page(address));
+			p = new Page(address);
 		}
 		
 		try {
-			Thread.sleep(0);
+			Thread.sleep(0); // simulate constant page fault time. 
 		} catch (InterruptedException e) {
 		}
 		
@@ -104,6 +110,7 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 		chain.unlink(page);
 		this.memory.store(null, page.frame);
 		this.pageTable.remove(page.address);
+		this.swap.put(page.address, page); // store page to swap space.
 	}
 	
 	/* (non-Javadoc)
@@ -281,7 +288,7 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 		long miss = 0;
 		long evicted = 0;
 		
-		for (Page page : this.disk.values()) {
+		for (Page page : this.swap.values()) {
 			hit += page.refs();
 			miss += page.misses();
 			evicted += page.evictions();
@@ -296,11 +303,11 @@ public class HierarchicalMemoryManager implements IMemoryManager {
 	}
 	
 	public void stats() {
-		Integer [] addresses = this.disk.keySet().toArray(new Integer[0]);
+		Integer [] addresses = this.swap.keySet().toArray(new Integer[0]);
 		
 		Arrays.sort(addresses);
 		for (int i : addresses) {
-			Page p = this.disk.get(i);
+			Page p = this.swap.get(i);
 			java.lang.System.out.println(p.stats());
 		}
 	}

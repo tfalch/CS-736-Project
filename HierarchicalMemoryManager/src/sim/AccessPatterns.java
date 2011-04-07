@@ -116,8 +116,9 @@ public class AccessPatterns {
 					int B = j * n + k + (m * n);
 					
 					this.mem_mgr.access(A);
-					if (j == 0)
+					if (j == 0) {
 						this.mem_mgr.link(chain, A);
+					}
 					this.mem_mgr.access(B);
 				}
 			}
