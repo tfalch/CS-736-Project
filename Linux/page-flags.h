@@ -484,19 +484,35 @@ static inline int page_has_private(struct page *page)
 
 /* overwritten default inline functions */
 static inline int PageReferenced(struct page * page) {
-  return test_bit(PG_referenced, &page->flags);
+  if (page->chain == NULL || 1) {
+    return test_bit(PG_referenced, &page->flags);
+  } else {
+    return atomic_read(&page->chain->ref_counter);
+  }
 }
 
-static inline void SetPageReferenced(struct page * page) {
-  set_bit(PG_referenced, &page->flags);
+static inline void SetPageReferenced(struct page * p) {
+  if (p->chain != NULL && 0) {
+    atomic_inc(&p->chain->ref_counter);
+  }
+  set_bit(PG_referenced, &p->flags);
 }
 
-static inline void ClearPageReferenced(struct page * page) {
-  clear_bit(PG_referenced, &page->flags);
+static inline void ClearPageReferenced(struct page * p) {
+  if (p->chain != NULL && 0) {
+    atomic_dec(&p->chain->ref_counter);
+  }
+  clear_bit(PG_referenced, &p->flags);
 }
 
 static inline int TestClearPageReferenced(struct page * page) {
-  return test_and_clear_bit(PG_referenced, &page->flags);
+  int v = test_and_clear_bit(PG_referenced, &page->flags);
+  if (v && page->chain != NULL && 0) {
+    atomic_dec(&page->chain->ref_counter);
+  } else if (!v && v) {
+    v = atomic_read(&page->chain->ref_counter);
+  }
+  return v;
 }
 
 #endif /* !__GENERATING_BOUNDS_H */

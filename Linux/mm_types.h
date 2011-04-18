@@ -101,11 +101,11 @@ struct page {
 	 * is a pointer to such a status block. NULL if not tracked.
 	 */
 	void *shadow;
+#endif
 
         struct memory_chain * chain; // memory chain associated with.
         struct page * next;
         struct page * prev;
-#endif
 };
 
 typedef enum eviction_policy {
