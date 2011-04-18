@@ -1,8 +1,7 @@
-Directory Mapping (Alphabetical Listing by file name)
+Directory Mapping
 -----------------
-ia32entry.S -> arch/x86/ia32/
-mchain.c -> mm/
-mm_types.h -> include/linux/
-syscalls.h -> include/linux/
-syscall_table_32.S -> arc/x86/kernel/
-unistd_32.h -> arch/x86/include/asm/
+Please update file.lnk with mappings of files and use
+the awk script from the root directory to establish the
+links. 
+
+e.g: $ ./set_links < ~/file.lnk
