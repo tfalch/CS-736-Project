@@ -3,6 +3,7 @@
 #include <linux/unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <stdlib.h>
 
 #define NR_sys_new_mem_chain      341
 #define NR_sys_set_mem_chain_attr 342
@@ -46,5 +47,10 @@ int main() {
     fprintf(stdout, "test complete. passed %d of %d\n",
 	    nr_passed, total);
 
+    int* lol = malloc(sizeof(int)*2000);
+    int* lol2 = malloc(sizeof(int)*2000);
+
+    syscall(343, 0, lol, 4);
+    syscall(343, 0, lol2, 4);
     return 0;
 }
