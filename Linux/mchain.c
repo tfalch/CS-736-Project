@@ -14,6 +14,18 @@ asmlinkage long sys_set_mem_chain_attr(unsigned int c,
 
 SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
 		size_t, length) {
+	printk(KERN_EMERG "start: %d\n", start);
+	
+	vm_area_struct * vma;
+	vma = find_vma(current->mm, start);
+
+	printk(KERN_EMERG "vma.start: %d\n", vma->vm_start);
+
+	struct page * page;
+	page = follow_page(vma, start);
+
+	if(PageActive(page)){
+		printk(KERN_EMERG "active\n");
     return 0;
 }
 
