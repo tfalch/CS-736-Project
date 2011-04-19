@@ -26,9 +26,13 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
 
 	page = follow_page(vma, start, FOLL_GET | FOLL_TOUCH);
 
+	printk(KERN_EMERG "page: %ln\n", &page);
+
 	if(PageActive(page)){
 		printk(KERN_EMERG "active\n");
 	}
+	if(PageReferenced(page)){
+		printk(KERN_EMERG "referenced\n");
     return 0;
 }
 
