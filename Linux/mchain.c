@@ -3,8 +3,11 @@
 #include <linux/sched.h>
 #include <linux/linkage.h>
 #include <linux/mm_types.h>
+#include <linux/slab.h>
 
 SYSCALL_DEFINE0(new_mem_chain) {
+	memory_chain * mchain = kmalloc(sizeof(memory_chain), GFP_KERNEL); //And maybe GPR_ATOMIC?
+
     return 0;
 }
 
