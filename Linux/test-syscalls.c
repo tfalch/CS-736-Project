@@ -14,7 +14,7 @@
 #define NR_sys_rls_mem_chain      347
 
 int main() {
-
+/*
     int i = 0;
 
     int passed = 0;
@@ -37,7 +37,7 @@ int main() {
     fprintf(stdout, "testing system calls...\n");
     for (i = 0; i < n; ) {
 
-        /* syscall does not perform any parameter checking/validation. */
+        /* syscall does not perform any parameter checking/validation. 
         passed = syscall(341+i) == 0;
 	 
         fprintf(stdout, "test %d: %s...", ++i, sys_calls[i]);  
@@ -46,6 +46,15 @@ int main() {
     }      
     fprintf(stdout, "test complete. passed %d of %d\n",
 	    nr_passed, total);
+
+*/
+	syscall(341);
+	syscall(341);
+	syscall(341);
+	syscall(341);
+	syscall(341);
+	syscall(341);
+	syscall(341);
 
     int* lol = malloc(sizeof(int)*2000);
     int* lol2 = malloc(sizeof(int)*2000);

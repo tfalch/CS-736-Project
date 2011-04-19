@@ -5,8 +5,31 @@
 #include <linux/mm_types.h>
 #include <linux/slab.h>
 
+struct memory_chain ** memory_chains;
+int nextPos = -1;
+
 SYSCALL_DEFINE0(new_mem_chain) {
-	memory_chain * mchain = kmalloc(sizeof(memory_chain), GFP_KERNEL); //And maybe GPR_ATOMIC?
+	struct memory_chain * mchain;
+
+	if(nextPos > 0 && nextPos < 5){
+		printk(KERN_EMERG "Inserting new chain at %d\n", nextPos);
+		mchain = kmalloc(sizeof(mchain), GFP_KERNEL); //And maybe GPR_ATOMIC?
+		memory_chains[nextPos] = mchain;
+		nextPos++;
+		return nextPos -1;
+	}
+	else if(nextPos == -1){
+		printk(KERN_EMERG "Creating new chain");
+		mchain = kmalloc(sizeof(mchain), GFP_KERNEL); //And maybe GPR_ATOMIC?
+		memory_chains = kmalloc(sizeof(*mchain)*5, GFP_KERNEL);
+		memory_chains[0] = mchain;
+		nextPos = 1;
+		return 0;
+	}
+	else{
+		printk(KERN_EMERG "Success");
+		return -1;
+	}
 
     return 0;
 }
@@ -29,13 +52,14 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
 
 	page = follow_page(vma, start, FOLL_GET | FOLL_TOUCH);
 
-	printk(KERN_EMERG "page: %ln\n", &page);
+	printk(KERN_EMERG "page: %lu\n", (unsigned long)page);
 
 	if(PageActive(page)){
 		printk(KERN_EMERG "active\n");
 	}
 	if(PageReferenced(page)){
 		printk(KERN_EMERG "referenced\n");
+	}
     return 0;
 }
 

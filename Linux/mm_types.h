@@ -132,6 +132,7 @@ typedef struct memory_chain {
     struct page * head;   // head of linked pages.
     struct page * tail;   // tail of linked pages.
     struct page * anchor; // anchored page. last page to be evicted from chain.
+    unsigned long pid;
 
     atomic_t ref_counter;   // nr of linked pages with PG_reference bit set. 
     struct page * delegate; // linked page most recently accessed.
