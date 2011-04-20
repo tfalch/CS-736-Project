@@ -152,11 +152,14 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
 		printk(KERN_EMERG "active\n");
 	}
 	if(PageReferenced(page)){
-		printk(KERN_EMERG "referenced\n");
+	    printk(KERN_EMERG "referenced\n");
 	}
 
-	if (page != NULL)
-	  __link_page(page);
+	if (page != NULL) {
+	    printk(KERN_EMERG "linking page...");
+	    __link_page(page);
+	    printk(KERN_EMERG "linked\n");
+	}
     return 0;
 }
 

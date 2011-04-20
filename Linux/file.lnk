@@ -5,3 +5,4 @@ page-flags.h -> include/linux/
 syscalls.h -> include/linux/
 syscall_table_32.S -> arch/x86/kernel/
 unistd_32.h -> arch/x86/include/asm/
+page_alloc.c -> mm/
