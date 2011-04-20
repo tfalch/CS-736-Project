@@ -8,28 +8,42 @@
 struct memory_chain ** memory_chains;
 int nextPos = -1;
 
-SYSCALL_DEFINE0(new_mem_chain) {
-	struct memory_chain * mchain;
+static memory_chain_t __new_mem_chain(unsigned int id) {
 
-	if(nextPos > 0 && nextPos < 5){
-		printk(KERN_EMERG "Inserting new chain at %d\n", nextPos);
-		mchain = kmalloc(sizeof(mchain), GFP_KERNEL); //And maybe GPR_ATOMIC?
-		memory_chains[nextPos] = mchain;
-		nextPos++;
-		return nextPos -1;
-	}
-	else if(nextPos == -1){
-		printk(KERN_EMERG "Creating new chain");
-		mchain = kmalloc(sizeof(mchain), GFP_KERNEL); //And maybe GPR_ATOMIC?
-		memory_chains = kmalloc(sizeof(*mchain)*5, GFP_KERNEL);
-		memory_chains[0] = mchain;
-		nextPos = 1;
-		return 0;
-	}
-	else{
-		printk(KERN_EMERG "Success");
-		return -1;
-	}
+    memory_chain_t * chain = kmalloc(sizeof(mchain), GFP_KERNEL); //And maybe GPR_ATOMIC?
+    chain->id = id;
+    chain->attributes = NULL;
+    chain->head = NULL;
+    chain->tail = NULL;
+    chain->anchor = NULL;
+    atomic->delegate = NULL;
+    chain->nr_links = 0;
+    
+    atomic_set(&chain->ref_counter, 0);
+    spin_lock_init(&chain->lock);  
+}
+
+SYSCALL_DEFINE0(new_mem_chain) {
+    struct memory_chain * mchain = NULL;
+
+    if(nextPos > 0 && nextPos < 5){
+        printk(KERN_EMERG "Inserting new chain at %d\n", nextPos);
+	mchain = __new_memory_chain(nextPos++)
+	memory_chains[nextPos] = mchain;
+	return nextPos -1;
+    }
+    else if(nextPos == -1){
+        printk(KERN_EMERG "Creating new chain");
+	mchain = __new_memory_chain(0);
+	memory_chains = kmalloc(sizeof(*mchain)*5, GFP_KERNEL);
+	memory_chains[0] = mchain;
+	nextPos = 1;
+	return 0;
+    }
+    else{
+        printk(KERN_EMERG "Too many open memory chains");
+	return -1;
+    }
 
     return 0;
 }
