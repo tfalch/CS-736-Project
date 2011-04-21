@@ -116,9 +116,10 @@ SYSCALL_DEFINE0(new_mem_chain) {
 
     if (nextPos < MAX_NUM_CHAINS){
         printk(KERN_EMERG "Inserting new chain at %d\n", nextPos);
-	mchain = __new_mem_chain(nextPos++);
-	memory_chains[nextPos] = mchain;
-	return nextPos -1;
+		mchain = __new_mem_chain(nextPos);
+		memory_chains[nextPos] = mchain;
+		nextPos++;
+		return nextPos -1;
     }
     else{
         printk(KERN_EMERG "Too many open memory chains");
@@ -137,6 +138,7 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
 		size_t, length) {
 	struct page * page;
 	struct vm_area_struct * vma;
+	long counter = 0;
 
 	printk(KERN_EMERG "start: %lu\n", start);
 	
@@ -144,21 +146,17 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
 
 	printk(KERN_EMERG "vma.start: %lu\n", vma->vm_start);
 
-	page = follow_page(vma, start, FOLL_GET | FOLL_TOUCH);
-
-	printk(KERN_EMERG "page: %lu\n", (unsigned long)page);
-
-	if(PageActive(page)){
-		printk(KERN_EMERG "active\n");
-	}
-	if(PageReferenced(page)){
-	    printk(KERN_EMERG "referenced\n");
-	}
-
-	if (page != NULL) {
-	    printk(KERN_EMERG "linking page...");
-	    __link_page(page);
-	    printk(KERN_EMERG "linked\n");
+	for(counter = start; counter < start + lenght; counter += PAGE_SIZE){
+		page = follow_page(vma, counter, FOLL_GET | FOLL_TOUCH);
+		if (page != NULL) {
+	    	printk(KERN_EMERG "linking page...");
+	    	__link_page(&memory_chains[c], page);
+	    	printk(KERN_EMERG "linked\n");
+		}
+		else{
+			printk(KERN_EMERG "page is null");
+			break;
+		}
 	}
     return 0;
 }
