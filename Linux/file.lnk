@@ -6,3 +6,6 @@ syscalls.h -> include/linux/
 syscall_table_32.S -> arch/x86/kernel/
 unistd_32.h -> arch/x86/include/asm/
 page_alloc.c -> mm/
+sched.h -> include/linux/
+fork.c -> kernel/
+exit.c -> kernel/

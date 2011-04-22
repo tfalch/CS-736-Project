@@ -1,21 +1,12 @@
 #include <stdio.h>
-#include <sys/syscall.h>
-#include <linux/unistd.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
 
+#include "mchain.h"
 
-#define NR_sys_new_mem_chain      341
-#define NR_sys_set_mem_chain_attr 342
-#define NR_sys_link_addr_rng      343
-#define NR_sys_anchor             344
-#define NR_sys_unlink_addr_rng    345
-#define NR_sys_brk_mem_chain      346
-#define NR_sys_rls_mem_chain      347
+int test_sys_calls() {
 
-int main() {
-/*
     int i = 0;
 
     int passed = 0;
@@ -38,7 +29,7 @@ int main() {
     fprintf(stdout, "testing system calls...\n");
     for (i = 0; i < n; ) {
 
-        /* syscall does not perform any parameter checking/validation. 
+        /* syscall does not perform any parameter checking/validation. */
         passed = syscall(341+i) == 0;
 	 
         fprintf(stdout, "test %d: %s...", ++i, sys_calls[i]);  
@@ -48,20 +39,26 @@ int main() {
     fprintf(stdout, "test complete. passed %d of %d\n",
 	    nr_passed, total);
 
-*/
-/*
-	int a,b,c,d;
-	a = syscall(341, 0);
-	b = syscall(341, 0);
-	c = syscall(341, 0);
-	d = syscall(341, 0);
 
-	printf("%d %d %d %d\n", a,b,c,d);
-*/
-    int* lol = malloc(sizeof(int)*2000);
-    int* lol2 = malloc(sizeof(int)*1000000);
+}
 
+int main() {
 
-    syscall(343, 1, lol2, 13000);
+  int * array = malloc(sizeof(int) * 1000);
+  int i = 0;
+
+  int chain_id = mchain();
+  set_mchain_attr(0, 0);
+  
+    
+    if (chain_id >= 0) {
+      size_t len = sizeof(int) * 1000;
+      mlink(chain_id, array, len);
+      munlink(array, len);
+      rls_mchain(chain_id);
+    } else {
+      fprintf(stdout, "chain allocation failed: (%d)", chain_id);
+    }
+
     return 0;
 }
