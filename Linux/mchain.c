@@ -5,6 +5,18 @@
 #include <linux/mm_types.h>
 #include <linux/slab.h>
 
+#define DEBUG 1
+
+#ifdef DEBUG
+#define PRINT_FX_NAME printk(KERN_EMERG __FUNCTION__);
+#define PRINT_LOCATION printk(KERN_EMERG __LINE__);
+#define DEBUG_PRINT(fmt, ...) \
+  printk(KERN_EMERG fmt, __VA_ARGS__); \
+  printk(KERN_EMERG "\n");
+#else
+#define DEBUG_PRINT(fmt, ...)
+#endif
+
 #define MAX_NUM_CHAINS 5
 
 #define MEMORY_CHAIN_IS_FULL(chain) 0 
@@ -118,8 +130,9 @@ static struct page * __link_page(memory_chain_t * chain, struct page * pg) {
         atomic_inc(&chain->ref_counter);
     }
 
-    printk(KERN_EMERG "Added page %lu to chain %d, new size of chain is %d\n",
-	   (unsigned long)pg, chain->id, atomic_read(&chain->nr_links));
+    DEBUG_PRINT("link_page(): added page at %p to chain %d, "
+		"length(chain) = %d", pg, chain->id, 
+		atomic_read(&chain->nr_links));
     
     return victim;
 }
@@ -154,8 +167,8 @@ static int __find_free_slot(memory_chain_t * array[], size_t len) {
 SYSCALL_DEFINE0(new_mem_chain) {
     struct task_struct * tsk = current;
 
-    printk(KERN_EMERG "new_mem_chain(): tsk[chains=%p, nr=%d, max=%d]",
-	   tsk->chains, tsk->nr_chains, tsk->max_num_chains);
+    DEBUG_PRINT("new_mem_chain(): tsk[chains=%p, nr=%d, max=%d]",
+		tsk->chains, tsk->nr_chains, tsk->max_num_chains);
 
     if (tsk->chains != NULL) {
         /* determine # of open chains */
@@ -163,6 +176,10 @@ SYSCALL_DEFINE0(new_mem_chain) {
 	    int slot = __find_free_slot(tsk->chains, MAX_NUM_CHAINS);
 	    tsk->chains[slot] = __new_mem_chain(slot);
 	    tsk->nr_chains++;
+
+	    DEBUG_PRINT("new_mem_chain(): tsk[chains=%p, nr=%d, max=%d]",
+			tsk->chains, tsk->nr_chains, tsk->max_num_chains);
+
 	    return slot;
 	} 
     } else {
@@ -174,16 +191,27 @@ SYSCALL_DEFINE0(new_mem_chain) {
 	/* assign chain to first slot */
 	tsk->chains[tsk->nr_chains++] = __new_mem_chain(0);
 	tsk->max_num_chains = MAX_NUM_CHAINS;
+
+	DEBUG_PRINT("new_mem_chain(): tsk[chains=%p, nr=%d, max=%d]",
+		    tsk->chains, tsk->nr_chains, tsk->max_num_chains);
+
 	return 0;
     }
 
-    printk(KERN_EMERG "new_mem_chain(): Too many open memory chains");
+    DEBUG_PRINT("new_mem_chain(): %s", "Too many open memory chains");
     return -1;
 }
 
 asmlinkage long sys_set_mem_chain_attr(unsigned int c,
 				       const memory_chain_attr_t * attr) {
     return 0;
+}
+
+static inline int stack_guard_page(struct vm_area_struct * vma, 
+				   unsigned long addr) {
+    return (vma->vm_flags & VM_GROWSDOWN) &&
+        (vma->vm_start == addr) &&
+        !vma_stack_continue(vma->vm_prev, addr);
 }
 
 /**
@@ -193,23 +221,52 @@ asmlinkage long sys_set_mem_chain_attr(unsigned int c,
  * specified address is anchored in the chain. 
  * @inparam chain chain object pages in provided range should be linked to.
  * @inparam vma vma object containing specified address range. 
- * @inparam start start address within in the vam of the addres range. 
- * @inparam len length of address range within the vma to be linked.
+ * @inparam start start address within the vam of the addres range. 
+ * @inparam end end address within the vma of the address range.
  * @inparam anchor address of anchor page.
  * @return 0 on success; -1 otherwise. 
  */
 static long __mlink_vma_pages_range(memory_chain_t * chain,
 				    struct vm_area_struct * vma, 
-				    unsigned long start, size_t len,
+				    unsigned long start, unsigned long end,
 				    unsigned long anchor)
 {
 
+    pte_t * pte = NULL;
+    pmd_t * pmd = NULL;
+    pud_t * pud = NULL;
+    pgd_t * pgd = NULL;
+
     int foll_flags = FOLL_GET | FOLL_TOUCH;
     struct page * page = NULL;
-  
-    for (; start < len; start += PAGE_SIZE) {
 
-        page = follow_page(vma, start, foll_flags);
+    if (start > TASK_SIZE)
+        pgd = pgd_offset_k(start);
+    else
+        pgd = pgd_offset_gate(vma->vm_mm, start);
+    BUG_ON(pgd_none(*pgd));
+    pud = pud_offset(pgd, start);
+    BUG_ON(pud_none(*pud));
+    pmd = pmd_offset(pud, start);
+    if (pmd_none(*pmd)) 
+        return 0;
+    pte = pte_offset_map(pmd, start);
+    if (pte_none(*pte)) 
+        return 0;
+
+    DEBUG_PRINT("mlink_vma_pages_range(): vma[s=%lu, e=%lu]; " \
+		"range[start=%lu, end=%lu]", vma->vm_start, 
+		vma->vm_end, start, end);
+
+    /* do not try to access the guard page of a stack vma */
+    if (stack_guard_page(vma, start)) 
+        start += PAGE_SIZE;
+  
+    for (; start < end; start += PAGE_SIZE) {
+
+        page = vm_normal_page(vma, start, *pte);
+	  // follow_page(vma, start, foll_flags);
+	DEBUG_PRINT("mlink_vma_pages_range(): follow_page(%lu)", start);
 		
 	if (page != NULL) {
 
@@ -218,10 +275,11 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
 	    if (unlikely(start == anchor)) 
 	        chain->anchor = page;
 	    
-	    printk(KERN_EMERG "Page: %lu VMA: %lu\n", (unsigned long)page, 
-		   (unsigned long)vma);
+	    DEBUG_PRINT("mlink_vma_pages_range(): linked(address): %lu " \
+			"in vma: %lu", start, (unsigned long)vma);
 	} else {
-	    printk(KERN_EMERG "page is null\n");
+	    DEBUG_PRINT("mlink_vma_paged_range(): no page found at %lu\n", 
+			start);
 	    break;
 	}
     }
@@ -245,7 +303,6 @@ static long do_mlink_pages(struct memory_chain * chain,
 			   unsigned long start, size_t len,
 			   unsigned long anchor) {
 
-
     int r = -1; // return code.
     unsigned long end = start + len;
     unsigned long s = start; // current vma's start address. 
@@ -258,6 +315,9 @@ static long do_mlink_pages(struct memory_chain * chain,
     if (!vma || vma->vm_start >= end)
         return 0;
 
+    DEBUG_PRINT("do_mlink_pages(): range[start=%lu, end=%lu]",
+		start, end);
+
     for (s = start; s < end; s = e) {
 
         /* determine if current address lies outside range 
@@ -269,11 +329,14 @@ static long do_mlink_pages(struct memory_chain * chain,
 	    break;
 
 	/* determine current vma's end address. */
-	e = min(end, vma->vm_end);
+	e = end < vma->vm_end ? end : vma->vm_end;
       
 	/* determine current vma's start address. */
         if (s < vma->vm_start)
 	    s = vma->vm_start;
+
+	DEBUG_PRINT("do_mlink_pages(): range[start=%lu, end=%lu]",
+		    start, e);
 
 	r = __mlink_vma_pages_range(chain, vma, s, e, anchor);
     }
@@ -288,13 +351,19 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
     int error = -1;
     struct memory_chain * chain = NULL;
 
+    DEBUG_PRINT("link_add_rng() chain=%u, range[start=%lu, length=%u",
+		c, start, len);
+
     /* check valid chain id provided. */
     if (c >= current->max_num_chains ||
 	(chain = current->chains[c]) == NULL) 
         return error;
 
-    start &= PAGE_MASK;;
     len = PAGE_ALIGN(len + (start & ~PAGE_MASK));
+    start &= PAGE_MASK;
+
+    DEBUG_PRINT("link_add_rng() chain=%u, range[start=%lu, length=%u",
+		c, start, len);
  
     /* acquire chain's lock. */
     spin_lock(&chain->lock);
@@ -316,8 +385,8 @@ SYSCALL_DEFINE2(anchor, unsigned int, c, unsigned long, addr) {
 	(chain = current->chains[c]) == NULL) 
         return error;
 
-    addr &= PAGE_MASK;
     len = PAGE_ALIGN(PAGE_SIZE + (addr & ~PAGE_MASK));
+    addr &= PAGE_MASK;
 
     /* acquire chain's lock. */
     spin_lock(&chain->lock);

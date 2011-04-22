@@ -5,6 +5,31 @@
 
 #include "mchain.h"
 
+int main() {
+
+    size_t len = sizeof(int) * 12000;
+    int * array = malloc(len);
+    
+    if (array != NULL) {
+      
+        int chain_id = mchain();
+	set_mchain_attr(0, 0);  
+	
+	if (chain_id >= 0) {
+	    mlink(chain_id, array, len);
+	    munlink(array, len);
+	    rls_mchain(chain_id);
+	} else {
+	  fprintf(stdout, "chain allocation failed: (%d)", chain_id);
+	}
+    } else {
+        fprintf(stdout, "unable to allocate array of size %d\n", len);
+    }
+    
+    return 0;
+}
+
+
 int test_sys_calls() {
 
     int i = 0;
@@ -40,25 +65,4 @@ int test_sys_calls() {
 	    nr_passed, total);
 
 
-}
-
-int main() {
-
-  size_t len = sizeof(int) * 2000;
-  int * array = malloc(len);
-  int i = 0;
-
-  int chain_id = mchain();
-  set_mchain_attr(0, 0);
-  
-    
-    if (chain_id >= 0) {
-      mlink(chain_id, array, len);
-      munlink(array, len);
-      rls_mchain(chain_id);
-    } else {
-      fprintf(stdout, "chain allocation failed: (%d)", chain_id);
-    }
-
-    return 0;
 }
