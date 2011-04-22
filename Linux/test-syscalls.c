@@ -44,7 +44,8 @@ int test_sys_calls() {
 
 int main() {
 
-  int * array = malloc(sizeof(int) * 1000);
+  size_t len = sizeof(int) * 2000;
+  int * array = malloc(len);
   int i = 0;
 
   int chain_id = mchain();
@@ -52,7 +53,6 @@ int main() {
   
     
     if (chain_id >= 0) {
-      size_t len = sizeof(int) * 2000;
       mlink(chain_id, array, len);
       munlink(array, len);
       rls_mchain(chain_id);
