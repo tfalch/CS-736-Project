@@ -7,9 +7,16 @@
 
 #define MAX_NUM_CHAINS 5
 
-#define MEMORY_CHAIN_IS_FULL(chain) 0 /* chain->attributes != NULL && chain->attributes->is_bounded ? \
-					 chain->nr_links == chain->attributes->max_links ? 0; */
+#define MEMORY_CHAIN_IS_FULL(chain) 0 
+  /*  chain->attributes != NULL && chain->attributes->is_bounded ?	\
+      atomic_read(&chain->nr_links) == chain->attributes->max_links : 0; */
 
+/**
+ * @name __new_mem_chain
+ * @description creates and initializes a new memory_chain object.
+ * @inparam id chain's identifier.
+ * @return initialized memory_chain object.
+ */
 static memory_chain_t * __new_mem_chain(unsigned int id) {
 
     memory_chain_t * chain = kmalloc(sizeof(memory_chain_t), GFP_KERNEL); //And maybe GPR_ATOMIC?
@@ -91,7 +98,7 @@ static struct page * __link_page(memory_chain_t * chain, struct page * pg) {
     }
  
     // if the chain is full, choose a victim for evicition.
-    if (MEMORY_CHAIN_IS_FULL(chain)) {
+    if (unlikely(MEMORY_CHAIN_IS_FULL(chain))) {
         victim = __evict_page(chain);
 	__unlink_page(victim);
     }
@@ -117,8 +124,13 @@ static struct page * __link_page(memory_chain_t * chain, struct page * pg) {
     return victim;
 }
 
-/**
- * constrains: len % 5 == 0 for loop unrolling. 
+/** 
+ * @name __find_free_slot
+ * @description returns the first free slot in the chain array.
+ * @inparam array array of memory chain object.
+ * @inparam len array size.
+ * @returns first available free slot. -1 if no slots are available.
+ * @constraints len % 5 == 0 for loop unrolling. 
  */
 static int __find_free_slot(memory_chain_t * array[], size_t len) {
 
@@ -174,9 +186,22 @@ asmlinkage long sys_set_mem_chain_attr(unsigned int c,
     return 0;
 }
 
+/**
+ * @name _mlink_vma_pages_range
+ * @description links pages found in the provided vma to the specified memory
+ * chain object. If an anchored address is provided, the page at the 
+ * specified address is anchored in the chain. 
+ * @inparam chain chain object pages in provided range should be linked to.
+ * @inparam vma vma object containing specified address range. 
+ * @inparam start start address within in the vam of the addres range. 
+ * @inparam len length of address range within the vma to be linked.
+ * @inparam anchor address of anchor page.
+ * @return 0 on success; -1 otherwise. 
+ */
 static long __mlink_vma_pages_range(memory_chain_t * chain,
 				    struct vm_area_struct * vma, 
-				    unsigned long start, size_t len)
+				    unsigned long start, size_t len,
+				    unsigned long anchor)
 {
 
     int foll_flags = FOLL_GET | FOLL_TOUCH;
@@ -187,7 +212,12 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
         page = follow_page(vma, start, foll_flags);
 		
 	if (page != NULL) {
+
 	    __link_page(chain, page);
+
+	    if (unlikely(start == anchor)) 
+	        chain->anchor = page;
+	    
 	    printk(KERN_EMERG "Page: %lu VMA: %lu\n", (unsigned long)page, 
 		   (unsigned long)vma);
 	} else {
@@ -199,8 +229,21 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
     return 0;
 }
 
+/**
+ * @name do_mlink_pages
+ * @description links pages in the provided address range with the specified 
+ * memory chain object. If an anchored address is provided, the page at the 
+ * specified address is anchored in the chain. 
+ *
+ * @inparam chain chain object pages in provided range should be linked to.
+ * @inparam start start address of address range.
+ * @inparam len length of address range to be linked.
+ * @inparam anchor address of anchor page.
+ * @return 0 on success; -1 otherwise. 
+ */
 static long do_mlink_pages(struct memory_chain * chain, 
-			   unsigned long start, size_t len) {
+			   unsigned long start, size_t len,
+			   unsigned long anchor) {
 
 
     int r = -1; // return code.
@@ -232,7 +275,7 @@ static long do_mlink_pages(struct memory_chain * chain,
         if (s < vma->vm_start)
 	    s = vma->vm_start;
 
-	r = __mlink_vma_pages_range(chain, vma, s, e);
+	r = __mlink_vma_pages_range(chain, vma, s, e, anchor);
     }
 
     return r;
@@ -255,7 +298,7 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
  
     /* acquire chain's lock. */
     spin_lock(&chain->lock);
-    error = do_mlink_pages(chain, start, len);
+    error = do_mlink_pages(chain, start, len, 0);
     /* release chain's lock */
     spin_unlock(&chain->lock);
 		     
@@ -263,6 +306,24 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
 }
 
 SYSCALL_DEFINE2(anchor, unsigned int, c, unsigned long, addr) {
+
+    int error = -1;
+    unsigned long len = 0;
+    struct memory_chain * chain = NULL;
+
+    /* check valid chain id provided. */
+    if (c >= current->max_num_chains ||
+	(chain = current->chains[c]) == NULL) 
+        return error;
+
+    addr &= PAGE_MASK;
+    len = PAGE_ALIGN(PAGE_SIZE + (addr & ~PAGE_MASK));
+
+    /* acquire chain's lock. */
+    spin_lock(&chain->lock);
+    error = do_mlink_pages(chain, addr, len, addr);
+    /* release chain's lock */
+    spin_unlock(&chain->lock);
     return 0;
 }
 
