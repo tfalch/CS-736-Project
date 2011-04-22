@@ -76,36 +76,46 @@ static struct page * __evict_page(memory_chain_t * chain) {
 static struct page * __link_page(memory_chain_t * chain, struct page * pg) {
 
     struct page * evicted = NULL;
+	
+	if(chain == NULL){
+		return NULL;
+	}
+
+	//We don't want to insert a page into a chain its already in
     if (chain == pg->chain) {
         return NULL;
     }
     
-    /* determine if page is migrating across chains. */
+	//Check if the page is in another chain, if so, we unlink it
     if (pg->chain != NULL) {
         spin_lock(&pg->chain->lock);
-	__unlink_page(pg);
-	spin_unlock(&pg->chain->lock);
+		__unlink_page(pg);
+		spin_unlock(&pg->chain->lock);
     }
-
  
+ 	//If the chain is full, we throw out a page to make room
     if (MEMORY_CHAIN_IS_FULL(chain)) {
         evicted = __evict_page(chain);
-	__unlink_page(evicted);
+		__unlink_page(evicted);
     }
-      
+
+	//If this is the first page
     if (unlikely(chain->head == NULL)) {
         chain->head = pg;
-	chain->tail = pg;
+		chain->tail = pg;
     } else {
         chain->head->prev = pg;
-	pg->next = chain->head;
-	chain->head = pg;
+		pg->next = chain->head;
+		chain->head = pg;
     }
 
     atomic_inc(&chain->nr_links);
     if (PageReferenced(pg)) {
         atomic_inc(&chain->ref_counter);
     }
+
+	printk(KERN_EMERG "Added page %lu to chain %d, new size of chain is %d\n",
+	(unsigned long)pg, chain->id, chain->nr_links);
 
     return evicted;
 
@@ -138,20 +148,22 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
 		size_t, length) {
 	struct page * page;
 	struct vm_area_struct * vma;
-	long counter = 0;
+	unsigned long counter = 0;
 
-	printk(KERN_EMERG "start: %lu\n", start);
-	
-	vma = find_vma(current->mm, start);
 
-	printk(KERN_EMERG "vma.start: %lu\n", vma->vm_start);
+	printk(KERN_EMERG, "%d\n", PAGE_SIZE);
 
 	for(counter = start; counter < start + length; counter += PAGE_SIZE){
+		//If the range is big, it might span several vma's
+		//It might be possible to do this more efficiently
+
+		vma = find_vma(current->mm, counter);
 		page = follow_page(vma, counter, FOLL_GET | FOLL_TOUCH);
+
+
 		if (page != NULL) {
-	    	printk(KERN_EMERG "linking page...");
-	    	__link_page(&(memory_chains[c]), page);
-	    	printk(KERN_EMERG "linked\n");
+			printk(KERN_EMERG "Page: %lu VMA: %lu\n", (unsigned long)page, (unsigned long)vma);
+	    	__link_page(memory_chains[c], page);
 		}
 		else{
 			printk(KERN_EMERG "page is null");

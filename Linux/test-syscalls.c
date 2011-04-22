@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+
 #define NR_sys_new_mem_chain      341
 #define NR_sys_set_mem_chain_attr 342
 #define NR_sys_link_addr_rng      343
@@ -48,6 +49,7 @@ int main() {
 	    nr_passed, total);
 
 */
+/*
 	int a,b,c,d;
 	a = syscall(341, 0);
 	b = syscall(341, 0);
@@ -55,11 +57,11 @@ int main() {
 	d = syscall(341, 0);
 
 	printf("%d %d %d %d\n", a,b,c,d);
-
+*/
     int* lol = malloc(sizeof(int)*2000);
-    int* lol2 = malloc(sizeof(int)*2000);
+    int* lol2 = malloc(sizeof(int)*1000000);
 
-    syscall(343, 0, lol, 4);
-    syscall(343, 0, lol2, 4);
+
+    syscall(343, 1, lol2, 13000);
     return 0;
 }
