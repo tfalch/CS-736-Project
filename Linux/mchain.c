@@ -72,28 +72,28 @@ static struct page * __evict_page(memory_chain_t * chain) {
 
 static struct page * __link_page(memory_chain_t * chain, struct page * pg) {
 
-    struct page * evicted = NULL;
+    struct page * victim = NULL;
     
     if (unlikely(chain == NULL)) {
         return NULL;
     }
     
-    //We don't want to insert a page into a chain its already in
+    // determine if pages is linked to chain previously.
     if (chain == pg->chain) {
         return NULL;
     }
     
-    //Check if the page is in another chain, if so, we unlink it
-    if (pg->chain != NULL) {
+    // check if the page is in another chain, if so, unlink page.
+    if (unlikely(pg->chain != NULL)) {
         spin_lock(&pg->chain->lock);
 	__unlink_page(pg);
 	spin_unlock(&pg->chain->lock);
     }
  
-    //If the chain is full, we throw out a page to make room
+    // if the chain is full, choose a victim for evicition.
     if (MEMORY_CHAIN_IS_FULL(chain)) {
-        evicted = __evict_page(chain);
-	__unlink_page(evicted);
+        victim = __evict_page(chain);
+	__unlink_page(victim);
     }
 
     //If this is the first page
@@ -114,7 +114,7 @@ static struct page * __link_page(memory_chain_t * chain, struct page * pg) {
     printk(KERN_EMERG "Added page %lu to chain %d, new size of chain is %d\n",
 	   (unsigned long)pg, chain->id, atomic_read(&chain->nr_links));
     
-    return evicted;
+    return victim;
 }
 
 /**
@@ -174,34 +174,92 @@ asmlinkage long sys_set_mem_chain_attr(unsigned int c,
     return 0;
 }
 
-SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
-		size_t, length) {
-    struct page * page;
-    struct vm_area_struct * vma;
-    unsigned long counter = 0;
-    
-    
-    printk(KERN_EMERG "page-size=%lu\n", PAGE_SIZE);
-    
-    for (counter = start; counter < start + length; counter += PAGE_SIZE) {
-        //If the range is big, it might span several vma's
-        //It might be possible to do this more efficiently
-      
-        vma = find_vma(current->mm, counter);
-	page = follow_page(vma, counter, FOLL_GET | FOLL_TOUCH);
-	
-	
+static long __mlink_vma_pages_range(memory_chain_t * chain,
+				    struct vm_area_struct * vma, 
+				    unsigned long start, size_t len)
+{
+
+    int foll_flags = FOLL_GET | FOLL_TOUCH;
+    struct page * page = NULL;
+  
+    for (; start < len; start += PAGE_SIZE) {
+
+        page = follow_page(vma, start, foll_flags);
+		
 	if (page != NULL) {
-	  printk(KERN_EMERG "Page: %lu VMA: %lu\n", (unsigned long)page, 
-		 (unsigned long)vma);
-	  __link_page(current->chains[c], page);
-	}
-	else{
-	    printk(KERN_EMERG "page is null");
+	    __link_page(chain, page);
+	    printk(KERN_EMERG "Page: %lu VMA: %lu\n", (unsigned long)page, 
+		   (unsigned long)vma);
+	} else {
+	    printk(KERN_EMERG "page is null\n");
 	    break;
 	}
     }
+
     return 0;
+}
+
+static long do_mlink_pages(struct memory_chain * chain, 
+			   unsigned long start, size_t len) {
+
+
+    int r = -1; // return code.
+    unsigned long end = start + len;
+    unsigned long s = start; // current vma's start address. 
+    unsigned long e = end;   // current vma's end address.
+
+    struct mm_struct * mm = current->mm;
+    struct vm_area_struct * vma = find_vma(mm, s); // retrieve first vma. 
+
+    /* check valid vma returned. */
+    if (!vma || vma->vm_start >= end)
+        return 0;
+
+    for (s = start; s < end; s = e) {
+
+        /* determine if current address lies outside range 
+	   of current vma; if so move to next vma. */
+	if (s >= vma->vm_end) 
+	    vma = vma->vm_next;
+
+	if (!vma || vma->vm_start >= end) 
+	    break;
+
+	/* determine current vma's end address. */
+	e = min(end, vma->vm_end);
+      
+	/* determine current vma's start address. */
+        if (s < vma->vm_start)
+	    s = vma->vm_start;
+
+	r = __mlink_vma_pages_range(chain, vma, s, e);
+    }
+
+    return r;
+
+}
+
+SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
+		size_t, len) {
+
+    int error = -1;
+    struct memory_chain * chain = NULL;
+
+    /* check valid chain id provided. */
+    if (c >= current->max_num_chains ||
+	(chain = current->chains[c]) == NULL) 
+        return error;
+
+    start &= PAGE_MASK;;
+    len = PAGE_ALIGN(len + (start & ~PAGE_MASK));
+ 
+    /* acquire chain's lock. */
+    spin_lock(&chain->lock);
+    error = do_mlink_pages(chain, start, len);
+    /* release chain's lock */
+    spin_unlock(&chain->lock);
+		     
+    return error;
 }
 
 SYSCALL_DEFINE2(anchor, unsigned int, c, unsigned long, addr) {

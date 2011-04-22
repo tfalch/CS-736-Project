@@ -4,6 +4,8 @@
 #include <sys/syscall.h>
 #include <linux/unistd.h>
 
+/* wrappers for system calls at user-level. */
+
 #define NR_sys_new_mem_chain      341
 #define NR_sys_set_mem_chain_attr 342
 #define NR_sys_link_addr_rng      343

@@ -52,7 +52,7 @@ int main() {
   
     
     if (chain_id >= 0) {
-      size_t len = sizeof(int) * 1000;
+      size_t len = sizeof(int) * 2000;
       mlink(chain_id, array, len);
       munlink(array, len);
       rls_mchain(chain_id);
