@@ -146,11 +146,11 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
 
 	printk(KERN_EMERG "vma.start: %lu\n", vma->vm_start);
 
-	for(counter = start; counter < start + lenght; counter += PAGE_SIZE){
+	for(counter = start; counter < start + length; counter += PAGE_SIZE){
 		page = follow_page(vma, counter, FOLL_GET | FOLL_TOUCH);
 		if (page != NULL) {
 	    	printk(KERN_EMERG "linking page...");
-	    	__link_page(&memory_chains[c], page);
+	    	__link_page(&(memory_chains[c]), page);
 	    	printk(KERN_EMERG "linked\n");
 		}
 		else{

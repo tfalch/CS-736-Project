@@ -48,13 +48,13 @@ int main() {
 	    nr_passed, total);
 
 */
-	syscall(341);
-	syscall(341);
-	syscall(341);
-	syscall(341);
-	syscall(341);
-	syscall(341);
-	syscall(341);
+	int a,b,c,d;
+	a = syscall(341, 0);
+	b = syscall(341, 0);
+	c = syscall(341, 0);
+	d = syscall(341, 0);
+
+	printf("%d %d %d %d\n", a,b,c,d);
 
     int* lol = malloc(sizeof(int)*2000);
     int* lol2 = malloc(sizeof(int)*2000);

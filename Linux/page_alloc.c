@@ -780,8 +780,8 @@ static int prep_new_page(struct page *page, int order, gfp_t gfp_flags)
 		prep_compound_page(page, order);
 
 	page->chain = NULL;
-	page->head = NULL;
-	page->tail = NULL;
+	page->next = NULL;
+	page->prev = NULL;
 
 	return 0;
 }
