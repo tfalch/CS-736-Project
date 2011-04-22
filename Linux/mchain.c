@@ -115,7 +115,10 @@ static struct page * __link_page(memory_chain_t * chain, struct page * pg) {
 	__unlink_page(victim);
     }
 
-    //If this is the first page
+    // set page's container.
+    pg->chain = chain;
+
+    // determine if first page. 
     if (unlikely(chain->head == NULL)) {
         chain->head = pg;
 	chain->tail = pg;
@@ -342,7 +345,6 @@ static long do_mlink_pages(struct memory_chain * chain,
     }
 
     return r;
-
 }
 
 SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
