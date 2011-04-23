@@ -25,13 +25,37 @@ void exec_test_suite() {
   void (*test_suite[])(void) = {
     &test_create_rls_mchain,
     &test_link_dynamic,
+    &test_link_static,
     NULL
   };
   
   int f = 0;
   for ( ; test_suite[f]; f++) {
     (*test_suite[f])();
+    fprintf(stdout, "\n");
   }
+}
+
+void test_link_static() {
+
+  int test_nr = 1;
+  int chain = mchain();
+  int array[1024];
+  int r = 0;
+
+  fprintf(stdout, 
+	  "Test: Link Statically Allocated Memory\n"	\
+	  "======================================\n");
+
+  r = mlink(chain, array, sizeof(array));
+  fprintf(stdout, "Test %d: Link Pages On Stack. Result=%s\n", test_nr++,
+	  TEST_RESULT(r, 0));
+
+  r = rls_mchain(chain);
+  fprintf(stdout, "Test %d: Release Memory Chain. Result=%s\n", test_nr++,
+	  TEST_RESULT(r, 0));
+
+  fprintf(stdout, "Test Complete\n");
 }
 
 void test_link_dynamic() {

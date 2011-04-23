@@ -7,14 +7,19 @@
 
 #include "internal.h"
 
-#define DEBUG 1
+/* comment out for production testing. */
+#define VERIFY_FLG 1
 
+#ifndef DEBUG
+#define DEBUG 1
+#endif 
+
+/* uncomment to disable DEBUG_PRINT for production testing */
 /*
 #ifdef DEBUG
 #undef DEBUG
 #endif
 */
-
 #ifdef DEBUG
 #define PRINT_FX_NAME printk(KERN_EMERG __FUNCTION__);
 #define PRINT_LOCATION printk(KERN_EMERG __LINE__);
@@ -317,7 +322,7 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
 	}
     }
 
-#ifdef DEBUG // validation check. 
+#ifdef VERIFY_FLG // validation check. 
     {
         int nonblocking = 0;
         int nr_pages = (end - addr) / PAGE_SIZE;
