@@ -333,9 +333,9 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
 	int i = 0;
 	for (i = 0; i < n; i++) {
 	    if (pages[i]->chain != chain) {
-	        DEBUG_PRINT("pages[%d] at %p has invalid container. " \
-			    "expected %p, but found %p", 
-			    i, pages[i], chain, pages[i]->chain);
+	        printk(KERN_EMERG "pages[%d] at %p has invalid container. " \
+		       "expected %p, but found %p", i, pages[i], chain, 
+		       pages[i]->chain);
 	    }
 	    BUG_ON(pages[i]->chain != chain);
 	}
