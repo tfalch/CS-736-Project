@@ -140,6 +140,14 @@ typedef struct memory_chain {
     spinlock_t lock;
 } memory_chain_t;
 
+typedef struct memory_chain_collection {
+    unsigned int count;
+    unsigned int capacity;
+    unsigned long set[256 % BITS_PER_LONG]; 
+    memory_chain_t ** chains; // memory chain array.
+    spinlock_t lock;
+} memory_chains;
+
 /*
  * A region containing a mapping of a non-memory backed file under NOMMU
  * conditions.  These are held in a global tree and are pinned by the VMAs that

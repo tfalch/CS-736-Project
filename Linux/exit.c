@@ -985,43 +985,49 @@ NORET_TYPE void do_exit(long code)
 
 	exit_mm(tsk);
 
-	/* mcpq: free memory chain array*/
-	if (tsk->chains) {
+	/* mcpq-begin: free memory chain container */
+	if (tsk->mcc->count > 0) {
+
 	    int i = 0;
+	    struct memory_chain_collection * mcc = tsk->mcc;
+	    memory_chain_t ** chains = mcc->chains;
+
 	    /* free individual chains. pages are released from memory,
 	       so ignore unlinking any pages. earlier constraint of 
 	       num_chains % 5 == 0 allows manual loop unrolling below.
+	       once move to bitmap, this constraint will no longer be valid.
 	    */
-	    for (; i < tsk->max_num_chains && tsk->nr_chains > 0; i++) {
+	    for (; i < mcc->capacity && mcc->count > 0; i++) {
 	      /* i = i + 0; */
-	      if (tsk->chains[i]) {
-		  kfree(tsk->chains[i]);
-		  tsk->nr_chains--;
-	      }
-	      /* i = i + 1; */
-	      if (tsk->chains[++i]) {
-		  kfree(tsk->chains[i]);
-		  tsk->nr_chains--;
-	      }
-	      /* i = i + 2; */
-	      if (tsk->chains[++i]) {
-		  kfree(tsk->chains[i]);
-		  tsk->nr_chains--;
-	      }
-	      /* i = i + 3; */
-	      if (tsk->chains[++i]) {
-		  kfree(tsk->chains[i]);
-		  tsk->nr_chains--;
-	      }
-	      /* i = i + 4; */
-	      if (tsk->chains[++i]) {
-		  kfree(tsk->chains[i]);
-		  tsk->nr_chains--;
-	      }
+	        if (chains[i]) {
+		    kfree(chains[i]);
+		    mcc->count--;
+		}
+		/* i = i + 1; */
+		if (chains[++i]) {
+		    kfree(chains[i]);
+		    mcc->count--;
+		}
+		/* i = i + 2; */
+		if (chains[++i]) {
+		    kfree(chains[i]);
+		    mcc->count--;
+		}
+		/* i = i + 3; */
+		if (chains[++i]) {
+		    kfree(chains[i]);
+		    mcc->count--;
+		}
+		/* i = i + 4; */
+		if (chains[++i]) {
+		    kfree(chains[i]);
+		    mcc->count--;
+		}
 	    }
-	    /* free chain array */
-	    kfree(tsk->chains);
 	}
+	/* free chains container */
+	kfree(tsk->mcc);
+	/* mcpq-end */
 
 	if (group_dead)
 		acct_process();

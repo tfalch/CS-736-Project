@@ -1472,11 +1472,14 @@ long do_fork(unsigned long clone_flags,
 			tracehook_report_vfork_done(p, nr);
 		}
 
-		/* mcpq: initialize memory chain structures. */
-		spin_lock_init(&p->chains_lock);
-		p->chains = NULL;
-		p->nr_chains = 0;
-		p->max_num_chains = 0;
+		/* mcpq-begin: initialize memory chain collection. */
+		p->mcc = kmalloc(sizeof(memory_chains), GFP_KERNEL);
+		p->mcc->count = 0;
+		p->mcc->capacity = 0;
+		p->mcc->chains = NULL;
+		spin_lock_init(&p->mcc->lock);
+		/* mcpq-end */
+
 	} else {
 		nr = PTR_ERR(p);
 	}

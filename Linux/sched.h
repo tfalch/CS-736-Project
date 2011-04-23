@@ -1529,10 +1529,7 @@ struct task_struct {
 	} memcg_batch;
 #endif
 
-  spinlock_t chains_lock;  // lock to ctrl concurrent access to chain array.
-  struct memory_chain ** chains; 
-  int nr_chains;
-  int max_num_chains;
+    struct memory_chain_collection * mcc;
 };
 
 /* Future-safe accessor for struct task_struct's cpus_allowed. */

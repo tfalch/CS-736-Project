@@ -6,36 +6,45 @@
 #include "mchain.h"
 
 
-#define NPAGES 100
+#define NPAGES 2
 #define LENGTH sizeof(int) * 1024 * NPAGES
 
 int main() {
-
-    int * array = malloc(LENGTH);
-    if (array != NULL) {
-
-      int chains[] = { mchain(), mchain() };
   
-	set_mchain_attr(0, 0);  
-	
-	if (chains[0] >= 0) {
-	    mlink(chains[0], array, LENGTH);
-	    //mlink(chains[0], array, LENGTH);
-	} else {
-	  fprintf(stdout, "chain allocation failed");
-	}
+  int i = 0;
+  int * array = malloc(LENGTH);
 
-	
-	if (chains[1] >= 0) {
-	    mlink(chains[1], array, LENGTH / 2);
-	    mlink(chains[0], array, LENGTH / 2);
-	}
-	
-    } else {
-        fprintf(stdout, "unable to allocate array of size %d\n", LENGTH);
-    }
+  if (array != NULL) {
     
-    return 0;
+    int chains[] = { mchain(), mchain() };
+    
+    set_mchain_attr(0, 0);  
+    
+    if (chains[0] >= 0) {
+      mlink(chains[0], array, LENGTH);
+      //mlink(chains[0], array, LENGTH);
+
+      if (chains[1] >= 0) {
+	mlink(chains[1], array, LENGTH / 2);
+	mlink(chains[0], array, LENGTH / 2);
+	rls_mchain(chains[1]);
+      }
+      rls_mchain(chains[0]);
+  
+    } else {
+      fprintf(stdout, "chain allocation failed");
+    }
+  }else {
+    fprintf(stdout, "unable to allocate array of size %d\n", LENGTH);
+  }
+ 
+  for (i = 0; i < 5; i++) {
+    int id = mchain();
+    if (id < 0)
+      fprintf(stderr, "%d: %s\n", id, mchain_strerror(id));
+  }
+
+  return 0;
 }
 
 

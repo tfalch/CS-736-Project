@@ -9,6 +9,12 @@
 
 #define DEBUG 1
 
+/*
+#ifdef DEBUG
+#undef DEBUG
+#endif
+*/
+
 #ifdef DEBUG
 #define PRINT_FX_NAME printk(KERN_EMERG __FUNCTION__);
 #define PRINT_LOCATION printk(KERN_EMERG __LINE__);
@@ -188,35 +194,38 @@ static int __find_free_slot(memory_chain_t * array[], size_t len) {
 SYSCALL_DEFINE0(new_mem_chain) {
 
     int slot = -2; // error-code: Too many open chains
-    struct task_struct * tsk = current;
+    memory_chains * chain_collection = current->mcc;
 
-    spin_lock(&tsk->chains_lock);
+    spin_lock(&chain_collection->lock);
 
-    if (tsk->chains != NULL) {
+    if (chain_collection->chains != NULL) {
         /* determine # of open chains */
-        if (tsk->nr_chains < MAX_NUM_CHAINS) {
-	    slot = __find_free_slot(tsk->chains, MAX_NUM_CHAINS);	    
-	    tsk->chains[slot] = __new_mem_chain(slot);
-	    tsk->nr_chains++;
+        if (chain_collection->count < chain_collection->capacity) {
 
-	    DEBUG_PRINT("new_mem_chain(): tsk[chains=%p, nr=%d, max=%d]",
-			tsk->chains, tsk->nr_chains, tsk->max_num_chains);
+	    slot = __find_free_slot(chain_collection->chains,
+				    chain_collection->capacity);
+	    chain_collection->chains[slot] = __new_mem_chain(slot);
+	    chain_collection->count++;
 	}
     } else {
-        tsk->chains = kmalloc(sizeof(memory_chain_t *) * MAX_NUM_CHAINS,
-			      GFP_KERNEL);
+        chain_collection->chains = kmalloc(sizeof(memory_chain_t *) * 
+					   MAX_NUM_CHAINS, GFP_KERNEL);
 	/* zero out chain array */
-	memset(tsk->chains, 0, sizeof(memory_chain_t *) * MAX_NUM_CHAINS); 
+	memset(chain_collection->chains, 0, 
+	       sizeof(memory_chain_t *) * MAX_NUM_CHAINS); 
 
 	/* assign chain to first slot */
-	tsk->chains[tsk->nr_chains++] = __new_mem_chain(slot = 0);
-	tsk->max_num_chains = MAX_NUM_CHAINS;
-
-	DEBUG_PRINT("new_mem_chain(): tsk[chains=%p, nr=%d, max=%d]",
-		    tsk->chains, tsk->nr_chains, tsk->max_num_chains);
+	chain_collection->chains[0] = __new_mem_chain(slot = 0);
+	chain_collection->capacity = MAX_NUM_CHAINS;
+	chain_collection->count = 1;
     }
 
-    spin_unlock(&tsk->chains_lock);
+    DEBUG_PRINT("new_mem_chain(): tsk[chains=%p, nr=%d, max=%d]",
+		chain_collection->chains, 
+		chain_collection->count,
+		chain_collection->capacity);
+
+    spin_unlock(&chain_collection->lock);
     
     return slot;
 }
@@ -389,18 +398,18 @@ static long do_mlink_pages(struct memory_chain * chain,
 SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
 		size_t, len) {
 
-  int error = -1; // Error code: Invalid Chain id. 
+    int error = -1; // Error code: Invalid Chain id. 
 
     struct memory_chain * chain = NULL;
-    struct task_struct * tsk = current;
+    struct memory_chain_collection * chain_collection = current->mcc;
     
-    /* acquire lock for current task. */
-    spin_lock(&tsk->chains_lock);
+    /* acquire chain collection's lock. */
+    spin_lock(&chain_collection->lock);
 
     /* check valid chain id provided. */
-    if (c >= tsk->max_num_chains ||
-	(chain = tsk->chains[c]) == NULL) {
-        spin_unlock(&tsk->chains_lock);
+    if (c >= chain_collection->capacity ||
+	(chain = chain_collection->chains[c]) == NULL) {
+        spin_unlock(&chain_collection->lock);
         return error;
     }
 
@@ -416,8 +425,8 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
     /* release chain's lock */
     spin_unlock(&chain->lock);
 
-    /* release task's chain lock. */
-    spin_unlock(&tsk->chains_lock);
+    /* release chain collection's lock. */
+    spin_unlock(&chain_collection->lock);
 		     
     return error;
 }
@@ -428,15 +437,15 @@ SYSCALL_DEFINE2(anchor, unsigned int, c, unsigned long, addr) {
     unsigned long len = 0;
 
     struct memory_chain * chain = NULL;
-    struct task_struct * tsk = current;
-
-    /* acquire lock for current task. */
-    spin_lock(&tsk->chains_lock);
+    struct memory_chain_collection * chain_collection = current->mcc;
+    
+    /* acquire chain collection's lock. */
+    spin_lock(&chain_collection->lock);
 
     /* check valid chain id provided. */
-    if (c >= tsk->max_num_chains ||
-	(chain = tsk->chains[c]) == NULL) {
-        spin_unlock(&tsk->chains_lock);
+    if (c >= chain_collection->capacity ||
+	(chain = chain_collection->chains[c]) == NULL) {
+        spin_unlock(&chain_collection->lock);
         return error;
     }
 
@@ -449,8 +458,8 @@ SYSCALL_DEFINE2(anchor, unsigned int, c, unsigned long, addr) {
     /* release chain's lock */
     spin_unlock(&chain->lock);
 
-    /* release task's chain lock. */
-    spin_unlock(&tsk->chains_lock);
+    /* release chain collection's lock. */
+    spin_unlock(&chain_collection->lock);
 
     return 0;
 }
@@ -488,56 +497,57 @@ static void __unlink_chain(memory_chain_t * chain) {
 
 SYSCALL_DEFINE1(brk_mem_chain, unsigned int, c) {
     
+    int error = -1;
     memory_chain_t * chain = NULL;
-    struct task_struct * tsk = current;
-
-    /* acquire lock for current task. */
-    spin_lock(&tsk->chains_lock);
+    struct memory_chain_collection * chain_collection = current->mcc;
+    
+    /* acquire chain collection's lock. */
+    spin_lock(&chain_collection->lock);
 
     /* check valid chain id provided. */
-    if (c >= tsk->max_num_chains ||
-	(chain = tsk->chains[c]) == NULL) {
-        spin_unlock(&tsk->chains_lock);
-        return -1; // Invalid Chain Descriptor
+    if (c >= chain_collection->capacity ||
+	(chain = chain_collection->chains[c]) == NULL) {
+        spin_unlock(&chain_collection->lock);
+        return error;
     }
 
     spin_lock(&chain->lock);
     __unlink_chain(chain);
     spin_unlock(&chain->lock);
 
-    /* release task's chain lock */
-    spin_unlock(&tsk->chains_lock);
+    /* release chain collection's lock */
+    spin_unlock(&chain_collection->lock);
 
     return 0;
 }
 
 SYSCALL_DEFINE1(rls_mem_chain, unsigned int, c) {
     
+    int error = -1;
     memory_chain_t * chain = NULL;
-    struct task_struct * tsk = current;
+    struct memory_chain_collection * chain_collection = current->mcc;
     
-    /* acquire lock for current task. */
-    spin_lock(&tsk->chains_lock);
+    /* acquire chain collection's lock. */
+    spin_lock(&chain_collection->lock);
 
     /* check valid chain id provided. */
-    if (c >= tsk->max_num_chains ||
-	(chain = tsk->chains[c]) == NULL) {
-        spin_unlock(&tsk->chains_lock);
-        return -1; // Invalid Chain Descriptor
+    if (c >= chain_collection->capacity ||
+	(chain = chain_collection->chains[c]) == NULL) {
+        spin_unlock(&chain_collection->lock);
+        return error;
     }
-
-    spin_lock(&tsk->chains_lock);
 
     spin_lock(&chain->lock);
     __unlink_chain(chain);
     spin_unlock(&chain->lock);
  
     /* release chain object and free its slot. */
-    kfree(tsk->chains[c]);
-    tsk->chains[c] = NULL;
-    tsk->nr_chains--;
+    kfree(chain_collection->chains[c]);
+    chain_collection->chains[c] = NULL;
+    chain_collection->count--;
 
-    spin_unlock(&tsk->chains_lock);
+    /* release chain collection's lock */
+    spin_unlock(&chain_collection->lock);
     
     return 0; // Success
 }
