@@ -23,7 +23,7 @@
 #define brk_mchain(cid) syscall(NR_sys_brk_mem_chain, cid)
 #define rls_mchain(cid) syscall(NR_sys_rls_mem_chain, cid)
 
-#define mchain_strerror(errno) chain_errors[-1 * errno]
+#define mchain_strerror(errno) chain_errors[errno]
 
 static const char * chain_errors[] = {
   "Success",

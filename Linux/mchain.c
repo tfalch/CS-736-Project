@@ -225,10 +225,11 @@ SYSCALL_DEFINE0(new_mem_chain) {
 	chain_collection->count = 1;
     }
 
-    DEBUG_PRINT("new_mem_chain(): tsk[chains=%p, nr=%d, max=%d]",
+    DEBUG_PRINT("new_mem_chain(): tsk[chains=%p, nr=%d, max=%d, slot=%d]",
 		chain_collection->chains, 
 		chain_collection->count,
-		chain_collection->capacity);
+		chain_collection->capacity,
+		slot);
 
     spin_unlock(&chain_collection->lock);
     
