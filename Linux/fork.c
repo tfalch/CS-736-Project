@@ -1473,6 +1473,7 @@ long do_fork(unsigned long clone_flags,
 		}
 
 		/* mcpq: initialize memory chain structures. */
+		spin_lock_init(&p->chains_lock);
 		p->chains = NULL;
 		p->nr_chains = 0;
 		p->max_num_chains = 0;

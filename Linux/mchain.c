@@ -49,6 +49,19 @@ static memory_chain_t * __new_mem_chain(unsigned int id) {
     return chain;
 }
 
+static void inline __reset_page(struct page * page,
+				int clr_flg) {
+
+    page->next = NULL;
+    page->prev = NULL;
+    page->chain = NULL;
+      
+    if (clr_flg) {
+        ClearPageReferenced(page);
+	ClearPageActive(page);
+    }
+}
+
 static void __unlink_page(struct page * pg) {
     memory_chain_t * chain = pg->chain;
 
@@ -81,9 +94,7 @@ static void __unlink_page(struct page * pg) {
 	    atomic_dec(&chain->ref_counter);
 	}
 
-	pg->chain = NULL;
-	pg->next = NULL;
-	pg->prev = NULL;
+	__reset_page(pg, 0);
     }
 }
 
@@ -171,38 +182,39 @@ static int __find_free_slot(memory_chain_t * array[], size_t len) {
 
 SYSCALL_DEFINE0(new_mem_chain) {
 
+    int slot = -1;
     struct task_struct * tsk = current;
+
+
+    spin_lock(&tsk->chains_lock);
 
     if (tsk->chains != NULL) {
         /* determine # of open chains */
         if (tsk->nr_chains < MAX_NUM_CHAINS) {
-	    int slot = __find_free_slot(tsk->chains, MAX_NUM_CHAINS);
+	    slot = __find_free_slot(tsk->chains, MAX_NUM_CHAINS);	    
 	    tsk->chains[slot] = __new_mem_chain(slot);
 	    tsk->nr_chains++;
 
 	    DEBUG_PRINT("new_mem_chain(): tsk[chains=%p, nr=%d, max=%d]",
 			tsk->chains, tsk->nr_chains, tsk->max_num_chains);
-
-	    return slot;
-	} 
+	}
     } else {
-      tsk->chains = kmalloc(sizeof(memory_chain_t *) * MAX_NUM_CHAINS,
-			    GFP_KERNEL);
+        tsk->chains = kmalloc(sizeof(memory_chain_t *) * MAX_NUM_CHAINS,
+			      GFP_KERNEL);
 	/* zero out chain array */
 	memset(tsk->chains, 0, sizeof(memory_chain_t *) * MAX_NUM_CHAINS); 
 
 	/* assign chain to first slot */
-	tsk->chains[tsk->nr_chains++] = __new_mem_chain(0);
+	tsk->chains[tsk->nr_chains++] = __new_mem_chain(slot = 0);
 	tsk->max_num_chains = MAX_NUM_CHAINS;
 
 	DEBUG_PRINT("new_mem_chain(): tsk[chains=%p, nr=%d, max=%d]",
 		    tsk->chains, tsk->nr_chains, tsk->max_num_chains);
-
-	return 0;
     }
 
-    DEBUG_PRINT("new_mem_chain(): %s", "Too many open memory chains");
-    return -1;
+    spin_unlock(&tsk->chains_lock);
+    
+    return slot;
 }
 
 asmlinkage long sys_set_mem_chain_attr(unsigned int c,
@@ -374,12 +386,19 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
 		size_t, len) {
 
     int error = -1;
+
     struct memory_chain * chain = NULL;
+    struct task_struct * tsk = current;
+    
+    /* acquire lock for current task. */
+    spin_lock(&tsk->chains_lock);
 
     /* check valid chain id provided. */
-    if (c >= current->max_num_chains ||
-	(chain = current->chains[c]) == NULL) 
+    if (c >= tsk->max_num_chains ||
+	(chain = tsk->chains[c]) == NULL) {
+        spin_unlock(&tsk->chains_lock);
         return error;
+    }
 
     len = PAGE_ALIGN(len + (start & ~PAGE_MASK));
     start &= PAGE_MASK;
@@ -392,6 +411,9 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
     error = do_mlink_pages(chain, start, len, 0);
     /* release chain's lock */
     spin_unlock(&chain->lock);
+
+    /* release task's chain lock. */
+    spin_unlock(&tsk->chains_lock);
 		     
     return error;
 }
@@ -400,12 +422,19 @@ SYSCALL_DEFINE2(anchor, unsigned int, c, unsigned long, addr) {
 
     int error = -1;
     unsigned long len = 0;
+
     struct memory_chain * chain = NULL;
+    struct task_struct * tsk = current;
+
+    /* acquire lock for current task. */
+    spin_lock(&tsk->chains_lock);
 
     /* check valid chain id provided. */
-    if (c >= current->max_num_chains ||
-	(chain = current->chains[c]) == NULL) 
+    if (c >= tsk->max_num_chains ||
+	(chain = tsk->chains[c]) == NULL) {
+        spin_unlock(&tsk->chains_lock);
         return error;
+    }
 
     len = PAGE_ALIGN(PAGE_SIZE + (addr & ~PAGE_MASK));
     addr &= PAGE_MASK;
@@ -415,6 +444,10 @@ SYSCALL_DEFINE2(anchor, unsigned int, c, unsigned long, addr) {
     error = do_mlink_pages(chain, addr, len, addr);
     /* release chain's lock */
     spin_unlock(&chain->lock);
+
+    /* release task's chain lock. */
+    spin_unlock(&tsk->chains_lock);
+
     return 0;
 }
 
@@ -422,10 +455,85 @@ SYSCALL_DEFINE2(unlink_addr_rng, unsigned long, start, size_t, length) {
     return 0;
 }
 
+/**
+ * @name __unlink_chain
+ * @description unlinks all the pages contained within the speicified 
+ * chain object.
+ * @inparam chain chain object whose member pages are to be removed.
+ */
+static void __unlink_chain(memory_chain_t * chain) {
+
+    struct page * head = NULL;
+    struct page * tail = NULL;
+
+    for (head = chain->head, tail = chain->tail; 
+	 head != NULL && tail != NULL && head <= tail; ) {
+      
+        struct page * next = head->next;
+	struct page * prev = tail->prev;      
+	
+	__reset_page(head, 1);
+	__reset_page(tail, 1);
+	
+	head = next;
+	tail = prev;
+    }
+
+    atomic_set(&chain->ref_counter, 0);
+}
+
 SYSCALL_DEFINE1(brk_mem_chain, unsigned int, c) {
+    
+    memory_chain_t * chain = NULL;
+    struct task_struct * tsk = current;
+
+    /* acquire lock for current task. */
+    spin_lock(&tsk->chains_lock);
+
+    /* check valid chain id provided. */
+    if (c >= tsk->max_num_chains ||
+	(chain = tsk->chains[c]) == NULL) {
+        spin_unlock(&tsk->chains_lock);
+        return -1;
+    }
+
+    spin_lock(&chain->lock);
+    __unlink_chain(chain);
+    spin_unlock(&chain->lock);
+
+    /* release task's chain lock */
+    spin_unlock(&tsk->chains_lock);
+
     return 0;
 }
 
 SYSCALL_DEFINE1(rls_mem_chain, unsigned int, c) {
+    
+    memory_chain_t * chain = NULL;
+    struct task_struct * tsk = current;
+    
+    /* acquire lock for current task. */
+    spin_lock(&tsk->chains_lock);
+
+    /* check valid chain id provided. */
+    if (c >= tsk->max_num_chains ||
+	(chain = tsk->chains[c]) == NULL) {
+        spin_unlock(&tsk->chains_lock);
+        return -1;
+    }
+
+    spin_lock(&tsk->chains_lock);
+
+    spin_lock(&chain->lock);
+    __unlink_chain(chain);
+    spin_unlock(&chain->lock);
+ 
+    /* release chain object and free its slot. */
+    kfree(tsk->chains[c]);
+    tsk->chains[c] = NULL;
+    tsk->nr_chains--;
+
+    spin_unlock(&tsk->chains_lock);
+    
     return 0;
 }
