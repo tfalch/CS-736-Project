@@ -23,4 +23,13 @@
 #define brk_mchain(cid) syscall(NR_sys_brk_mem_chain, cid)
 #define rls_mchain(cid) syscall(NR_sys_rls_mem_chain, cid)
 
+#define mchain_strerror(errno) chain_errors[-1 * errno]
+
+static const char * chain_errors[] = {
+  "Success",
+  "Invalid chain descriptor",
+  "Too many open chains",
+  "Invalid address range"
+};
+
 #endif /* MCHAIN_H_ */

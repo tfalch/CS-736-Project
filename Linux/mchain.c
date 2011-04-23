@@ -50,18 +50,23 @@ static memory_chain_t * __new_mem_chain(unsigned int id) {
 }
 
 static void inline __reset_page(struct page * page,
-				int clr_flg) {
+				int clr_flgs) {
 
     page->next = NULL;
     page->prev = NULL;
     page->chain = NULL;
       
-    if (clr_flg) {
+    if (clr_flgs) {
         ClearPageReferenced(page);
 	ClearPageActive(page);
     }
 }
 
+/**
+ * @name __unlink_page
+ * @description unlinks the specified page from containing chain.
+ * @inparam pg page object to be unlinked.
+ */
 static void __unlink_page(struct page * pg) {
     memory_chain_t * chain = pg->chain;
 
@@ -177,14 +182,13 @@ static int __find_free_slot(memory_chain_t * array[], size_t len) {
          return slot;
   }
 
-   return -1;
+  return -1;
 }
 
 SYSCALL_DEFINE0(new_mem_chain) {
 
-    int slot = -1;
+    int slot = -2; // error-code: Too many open chains
     struct task_struct * tsk = current;
-
 
     spin_lock(&tsk->chains_lock);
 
@@ -385,7 +389,7 @@ static long do_mlink_pages(struct memory_chain * chain,
 SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
 		size_t, len) {
 
-    int error = -1;
+  int error = -1; // Error code: Invalid Chain id. 
 
     struct memory_chain * chain = NULL;
     struct task_struct * tsk = current;
@@ -420,7 +424,7 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
 
 SYSCALL_DEFINE2(anchor, unsigned int, c, unsigned long, addr) {
 
-    int error = -1;
+  int error = -1; // Error code Invalid chain descriptor.
     unsigned long len = 0;
 
     struct memory_chain * chain = NULL;
@@ -494,7 +498,7 @@ SYSCALL_DEFINE1(brk_mem_chain, unsigned int, c) {
     if (c >= tsk->max_num_chains ||
 	(chain = tsk->chains[c]) == NULL) {
         spin_unlock(&tsk->chains_lock);
-        return -1;
+        return -1; // Invalid Chain Descriptor
     }
 
     spin_lock(&chain->lock);
@@ -519,7 +523,7 @@ SYSCALL_DEFINE1(rls_mem_chain, unsigned int, c) {
     if (c >= tsk->max_num_chains ||
 	(chain = tsk->chains[c]) == NULL) {
         spin_unlock(&tsk->chains_lock);
-        return -1;
+        return -1; // Invalid Chain Descriptor
     }
 
     spin_lock(&tsk->chains_lock);
@@ -535,5 +539,5 @@ SYSCALL_DEFINE1(rls_mem_chain, unsigned int, c) {
 
     spin_unlock(&tsk->chains_lock);
     
-    return 0;
+    return 0; // Success
 }
