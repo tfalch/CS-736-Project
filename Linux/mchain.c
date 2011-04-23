@@ -5,6 +5,8 @@
 #include <linux/mm_types.h>
 #include <linux/slab.h>
 
+#include "internal.h"
+
 #define DEBUG 1
 
 #ifdef DEBUG
@@ -133,7 +135,7 @@ static struct page * __link_page(memory_chain_t * chain, struct page * pg) {
         atomic_inc(&chain->ref_counter);
     }
 
-    DEBUG_PRINT("link_page(): added page at %p to chain %d, "
+    DEBUG_PRINT("link_page(): added page: %p to chain: %d, "
 		"length(chain) = %d", pg, chain->id, 
 		atomic_read(&chain->nr_links));
     
@@ -168,10 +170,8 @@ static int __find_free_slot(memory_chain_t * array[], size_t len) {
 }
 
 SYSCALL_DEFINE0(new_mem_chain) {
-    struct task_struct * tsk = current;
 
-    DEBUG_PRINT("new_mem_chain(): tsk[chains=%p, nr=%d, max=%d]",
-		tsk->chains, tsk->nr_chains, tsk->max_num_chains);
+    struct task_struct * tsk = current;
 
     if (tsk->chains != NULL) {
         /* determine # of open chains */
@@ -217,6 +217,29 @@ static inline int stack_guard_page(struct vm_area_struct * vma,
         !vma_stack_continue(vma->vm_prev, addr);
 }
 
+static inline struct page * __get_user_page(struct vm_area_struct * vma,
+					    unsigned long addr) {
+  
+    int counter = 0;
+    int foll_flags = FOLL_TOUCH;
+    struct page * page= NULL;
+
+    cond_resched();
+    while (!(page = follow_page(vma, addr, foll_flags))) {
+        unsigned int fault_flags = FAULT_FLAG_ALLOW_RETRY;
+	int ret = handle_mm_fault(vma->vm_mm, vma, addr,
+				   fault_flags);
+
+	if (ret & VM_FAULT_ERROR)
+	    return NULL;
+
+	counter++;
+	cond_resched();
+    }
+
+    return page;
+}
+
 /**
  * @name _mlink_vma_pages_range
  * @description links pages found in the provided vma to the specified memory
@@ -234,42 +257,24 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
 				    unsigned long start, unsigned long end,
 				    unsigned long anchor)
 {
-
-    pte_t * pte = NULL;
-    pmd_t * pmd = NULL;
-    pud_t * pud = NULL;
-    pgd_t * pgd = NULL;
-
-    int foll_flags = FOLL_GET | FOLL_TOUCH;
     struct page * page = NULL;
+    unsigned long addr = start;
 
-    if (start > TASK_SIZE)
-        pgd = pgd_offset_k(start);
-    else
-        pgd = pgd_offset_gate(vma->vm_mm, start);
-    BUG_ON(pgd_none(*pgd));
-    pud = pud_offset(pgd, start);
-    BUG_ON(pud_none(*pud));
-    pmd = pmd_offset(pud, start);
-    if (pmd_none(*pmd)) 
-        return 0;
-    pte = pte_offset_map(pmd, start);
-    if (pte_none(*pte)) 
-        return 0;
+    DEBUG_PRINT("mlink_vma_pages_range(): vma-range[s=%lu, e=%lu]; " \
+		"range[start=%lu, end=%lu]", vma->vm_start, vma->vm_end, 
+		start, end);
 
-    DEBUG_PRINT("mlink_vma_pages_range(): vma[s=%lu, e=%lu]; " \
-		"range[start=%lu, end=%lu]", vma->vm_start, 
-		vma->vm_end, start, end);
+    /* validate page ranges within vma. */
+    BUG_ON(start < vma->vm_start || end > vma->vm_end);
 
     /* do not try to access the guard page of a stack vma */
     if (stack_guard_page(vma, start)) 
         start += PAGE_SIZE;
-  
+
+    addr = start;
     for (; start < end; start += PAGE_SIZE) {
 
-        page = vm_normal_page(vma, start, *pte);
-	  // follow_page(vma, start, foll_flags);
-	DEBUG_PRINT("mlink_vma_pages_range(): follow_page(%lu)", start);
+        page = __get_user_page(vma, start);
 		
 	if (page != NULL) {
 
@@ -281,12 +286,34 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
 	    DEBUG_PRINT("mlink_vma_pages_range(): linked(address): %lu " \
 			"in vma: %lu", start, (unsigned long)vma);
 	} else {
-	    DEBUG_PRINT("mlink_vma_paged_range(): no page found at %lu\n", 
+	    DEBUG_PRINT("mlink_vma_pages_range(): no page found at %lu\n", 
 			start);
 	    break;
 	}
     }
 
+#ifdef DEBUG // validation check. 
+    {
+        int nonblocking = 0;
+        int nr_pages = (end - addr) / PAGE_SIZE;
+	struct page ** pages = kmalloc(sizeof(struct page *) * nr_pages, 
+				       GFP_KERNEL);
+	int n = __get_user_pages(current, vma->vm_mm, addr, nr_pages,
+				 FOLL_TOUCH, pages, NULL, &nonblocking);
+	int i = 0;
+	for (i = 0; i < n; i++) {
+	    if (pages[i]->chain != chain) {
+	        DEBUG_PRINT("pages[%d] at %p has invalid container. " \
+			    "expected %p, but found %p", 
+			    i, pages[i], chain, pages[i]->chain);
+	    }
+	    BUG_ON(pages[i]->chain != chain);
+	}
+
+	kfree(pages);
+    }
+#endif
+    
     return 0;
 }
 
@@ -318,8 +345,7 @@ static long do_mlink_pages(struct memory_chain * chain,
     if (!vma || vma->vm_start >= end)
         return 0;
 
-    DEBUG_PRINT("do_mlink_pages(): range[start=%lu, end=%lu]",
-		start, end);
+    DEBUG_PRINT("do_mlink_pages(): range[start=%lu, end=%lu]", start, end);
 
     for (s = start; s < end; s = e) {
 
@@ -338,9 +364,6 @@ static long do_mlink_pages(struct memory_chain * chain,
         if (s < vma->vm_start)
 	    s = vma->vm_start;
 
-	DEBUG_PRINT("do_mlink_pages(): range[start=%lu, end=%lu]",
-		    start, e);
-
 	r = __mlink_vma_pages_range(chain, vma, s, e, anchor);
     }
 
@@ -352,9 +375,6 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
 
     int error = -1;
     struct memory_chain * chain = NULL;
-
-    DEBUG_PRINT("link_add_rng() chain=%u, range[start=%lu, length=%u",
-		c, start, len);
 
     /* check valid chain id provided. */
     if (c >= current->max_num_chains ||
