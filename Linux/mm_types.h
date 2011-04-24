@@ -34,78 +34,82 @@ struct memory_chain;
  * who is mapping it.
  */
 struct page {
-	unsigned long flags;		/* Atomic flags, some possibly
-					 * updated asynchronously */
-	atomic_t _count;		/* Usage count, see below. */
-	union {
-		atomic_t _mapcount;	/* Count of ptes mapped in mms,
-					 * to show when page is mapped
-					 * & limit reverse map searches.
+  unsigned long flags;		/* Atomic flags, some possibly
+				 * updated asynchronously */
+  atomic_t _count;		/* Usage count, see below. */
+  union {
+    atomic_t _mapcount;	/* Count of ptes mapped in mms,
+			 * to show when page is mapped
+			 * & limit reverse map searches.
+			 */
+    struct {		/* SLUB */
+      u16 inuse;
+      u16 objects;
+    };
+  };
+  union {
+    struct {
+      unsigned long private;		/* Mapping-private opaque data:
+					 * usually used for buffer_heads
+					 * if PagePrivate set; used for
+					 * swp_entry_t if PageSwapCache;
+					 * indicates order in the buddy
+					 * system if PG_buddy is set.
 					 */
-		struct {		/* SLUB */
-			u16 inuse;
-			u16 objects;
-		};
-	};
-	union {
-	    struct {
-		unsigned long private;		/* Mapping-private opaque data:
-					 	 * usually used for buffer_heads
-						 * if PagePrivate set; used for
-						 * swp_entry_t if PageSwapCache;
-						 * indicates order in the buddy
-						 * system if PG_buddy is set.
-						 */
-		struct address_space *mapping;	/* If low bit clear, points to
-						 * inode address_space, or NULL.
-						 * If page mapped as anonymous
-						 * memory, low bit is set, and
-						 * it points to anon_vma object:
-						 * see PAGE_MAPPING_ANON below.
-						 */
-	    };
+      struct address_space *mapping;	/* If low bit clear, points to
+					 * inode address_space, or NULL.
+					 * If page mapped as anonymous
+					 * memory, low bit is set, and
+					 * it points to anon_vma object:
+					 * see PAGE_MAPPING_ANON below.
+					 */
+    };
 #if USE_SPLIT_PTLOCKS
-	    spinlock_t ptl;
+    spinlock_t ptl;
 #endif
-	    struct kmem_cache *slab;	/* SLUB: Pointer to slab */
-	    struct page *first_page;	/* Compound tail pages */
-	};
-	union {
-		pgoff_t index;		/* Our offset within mapping. */
-		void *freelist;		/* SLUB: freelist req. slab lock */
-	};
-	struct list_head lru;		/* Pageout list, eg. active_list
-					 * protected by zone->lru_lock !
-					 */
-	/*
-	 * On machines where all RAM is mapped into kernel address space,
-	 * we can simply calculate the virtual address. On machines with
-	 * highmem some memory is mapped into kernel virtual memory
-	 * dynamically, so we need a place to store that address.
-	 * Note that this field could be 16 bits on x86 ... ;)
-	 *
-	 * Architectures with slow multiplication can define
-	 * WANT_PAGE_VIRTUAL in asm/page.h
-	 */
+    struct kmem_cache *slab;	/* SLUB: Pointer to slab */
+    struct page *first_page;	/* Compound tail pages */
+  };
+  union {
+    pgoff_t index;		/* Our offset within mapping. */
+    void *freelist;		/* SLUB: freelist req. slab lock */
+  };
+  struct list_head lru;		/* Pageout list, eg. active_list
+				 * protected by zone->lru_lock !
+				 */
+  /*
+   * On machines where all RAM is mapped into kernel address space,
+   * we can simply calculate the virtual address. On machines with
+   * highmem some memory is mapped into kernel virtual memory
+   * dynamically, so we need a place to store that address.
+   * Note that this field could be 16 bits on x86 ... ;)
+   *
+   * Architectures with slow multiplication can define
+   * WANT_PAGE_VIRTUAL in asm/page.h
+   */
 #if defined(WANT_PAGE_VIRTUAL)
-	void *virtual;			/* Kernel virtual address (NULL if
+  void *virtual;			/* Kernel virtual address (NULL if
 					   not kmapped, ie. highmem) */
 #endif /* WANT_PAGE_VIRTUAL */
 #ifdef CONFIG_WANT_PAGE_DEBUG_FLAGS
-	unsigned long debug_flags;	/* Use atomic bitops on this */
+  unsigned long debug_flags;	/* Use atomic bitops on this */
 #endif
-
+  
 #ifdef CONFIG_KMEMCHECK
-	/*
-	 * kmemcheck wants to track the status of each byte in a page; this
-	 * is a pointer to such a status block. NULL if not tracked.
-	 */
-	void *shadow;
+  /*
+   * kmemcheck wants to track the status of each byte in a page; this
+   * is a pointer to such a status block. NULL if not tracked.
+   */
+  void *shadow;
 #endif
-
-        struct memory_chain * chain; // memory chain associated with.
-        struct page * next;
-        struct page * prev;
+  
+  spinlock_t chain_lock; /* protects (pairwise) concurrent access between
+			    1. link(chain, page) && ##PageReferenced(page) 
+			    2. free(page) && exit(task).
+			 */
+  struct memory_chain * chain; // memory chain associated with.
+  struct page * next;
+  struct page * prev;
 };
 
 typedef enum eviction_policy {

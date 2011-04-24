@@ -103,7 +103,7 @@ void __unlink_page(struct page * pg) {
 	}
 	
 	chain->nr_links--;
-	if (PageReferenced(pg)) {
+	if (__PageReferenced(pg)) {
 	    atomic_dec(&chain->ref_counter);
 	}
 
@@ -138,7 +138,10 @@ static struct page * __link_page(memory_chain_t * chain, struct page * pg) {
     // if the chain is full, choose a victim for evicition.
     if (unlikely(MEMORY_CHAIN_IS_FULL(chain))) {
         victim = __evict_page(chain);
+
+	spin_lock(&victim->chain_lock);
 	__unlink_page(victim);
+	spin_unlock(&victim->chain_lock);
     }
 
     // set page's container.
@@ -285,8 +288,8 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
 				    unsigned long start, unsigned long end,
 				    unsigned long anchor)
 {
+    unsigned long addr;
     struct page * page = NULL;
-    unsigned long addr = start;
 
     DEBUG_PRINT("mlink_vma_pages_range(): vma-range[s=%lu, e=%lu]; " \
 		"range[start=%lu, end=%lu]", vma->vm_start, vma->vm_end, 
@@ -299,17 +302,19 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
     if (stack_guard_page(vma, start)) 
         start += PAGE_SIZE;
 
-    addr = start;
-    for (; start < end; start += PAGE_SIZE) {
+    for (addr = start; addr < end; addr += PAGE_SIZE) {
 
         page = __get_user_page(vma, start);
 		
 	if (page != NULL) {
-
+	  
+	    spin_lock(&page->chain_lock);
 	    __link_page(chain, page);
 
 	    if (unlikely(start == anchor)) 
 	        chain->anchor = page;
+
+	    spin_unlock(&page->chain_lock);
 	    
 	    DEBUG_PRINT("mlink_vma_pages_range(): linked(address): %lu " \
 			"in vma: %lu", start, (unsigned long)vma);
@@ -419,7 +424,7 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
     len = PAGE_ALIGN(len + (start & ~PAGE_MASK));
     start &= PAGE_MASK;
 
-    DEBUG_PRINT("link_add_rng() chain=%u, range[start=%lu, length=%u",
+    DEBUG_PRINT("link_addr_rng() chain=%u, range[start=%lu, length=%u",
 		c, start, len);
  
     /* acquire chain's lock. */
@@ -488,8 +493,13 @@ static void __unlink_chain(memory_chain_t * chain) {
         struct page * next = head->next;
 	struct page * prev = tail->prev;      
 	
+	spin_lock(&head->chain_lock);
 	__reset_page(head, 1);
+	spin_unlock(&head->chain_lock);
+
+	spin_lock(&tail->chain_lock);
 	__reset_page(tail, 1);
+	spin_unlock(&tail->chain_lock);
 	
 	head = next;
 	tail = prev;

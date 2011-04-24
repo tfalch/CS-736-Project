@@ -901,14 +901,16 @@ static inline void check_stack_usage(void) {}
 #endif
 
 /*
- * set any unreleased pages to empty chain container. 
+ * set any residing pages to have null container. 
  */
-static inline void unlink_chain(struct memory_chain * c) {
+static inline void unlink_chain_fast(struct memory_chain * c) {
   
   struct page * p = c->head;
-  for ( ; p != NULL; p = p->next)
-      p->chain = NULL; // potential data race.
-  
+  for ( ; p != NULL; p = p->next) {
+      spin_lock(&p->chain_lock);
+      p->chain = NULL; 
+      spin_unlock(&p->chain_lock);
+  }
 }
 
 NORET_TYPE void do_exit(long code)
@@ -1003,17 +1005,18 @@ NORET_TYPE void do_exit(long code)
 	    struct memory_chain_collection * mcc = tsk->mcc;
 	    memory_chain_t ** chains = mcc->chains;
 
-	    /* free individual chains. pages are released from memory,
-	       so ignore unlinking any pages. earlier constraint of 
-	       num_chains % 5 == 0 allows manual loop unrolling below.
-	       once move to bitmap, this constraint will no longer be valid.
+	    /* free individual chains setting any residing pages container
+	       to null. earlier constraint of num_chains % 5 == 0 allows 
+	       manual loop unrolling below. once move to bitmap, this
+	       constraint will no longer be valid and additional checks
+	       will be required.
 	    */
 	    for (; i < mcc->capacity && mcc->count > 0; i++) {
 	        /* i = i + 0; */
 	        if (chains[i]) {
 		    if (chains[i]->attributes)
 		        kfree(chains[i]->attributes);
-		    unlink_chain(chains[i]);
+		    unlink_chain_fast(chains[i]);
 		    kfree(chains[i]);
 		    mcc->count--;
 		}
@@ -1021,7 +1024,7 @@ NORET_TYPE void do_exit(long code)
 		if (chains[++i]) {
 		    if (chains[i]->attributes)
 		        kfree(chains[i]->attributes);
-		    unlink_chain(chains[i]);
+		    unlink_chain_fast(chains[i]);
 		    kfree(chains[i]);
 		    mcc->count--;
 		}
@@ -1029,7 +1032,7 @@ NORET_TYPE void do_exit(long code)
 		if (chains[++i]) {
 		    if (chains[i]->attributes)
 		        kfree(chains[i]->attributes);
-		    unlink_chain(chains[i]);
+		    unlink_chain_fast(chains[i]);
 		    kfree(chains[i]);
 		    mcc->count--;
 		}
@@ -1037,7 +1040,7 @@ NORET_TYPE void do_exit(long code)
 		if (chains[++i]) {
 		    if (chains[i]->attributes)
 		        kfree(chains[i]->attributes);
-		    unlink_chain(chains[i]);
+		    unlink_chain_fast(chains[i]);
 		    kfree(chains[i]);
 		    mcc->count--;
 		}
@@ -1045,7 +1048,7 @@ NORET_TYPE void do_exit(long code)
 		if (chains[++i]) {
 		    if (chains[i]->attributes)
 		        kfree(chains[i]->attributes);
-		    unlink_chain(chains[i]);
+		    unlink_chain_fast(chains[i]);
 		    kfree(chains[i]);
 		    mcc->count--;
 		}

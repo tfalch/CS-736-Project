@@ -479,48 +479,60 @@ static inline int PageTransCompound(struct page *page)
  */
 static inline int page_has_private(struct page *page)
 {
-	return !!(page->flags & PAGE_FLAGS_PRIVATE);
+    return !!(page->flags & PAGE_FLAGS_PRIVATE);
 }
 
-/* mcpq-begin: overwritten default inline functions 
-   data races are present when checking for NULL and
-   performing read. */
+/* mcpq-begin: overwritten default inline functions */
 static inline int PageReferenced(struct page * page) {
-  return test_bit(PG_referenced, &page->flags) ||
-    (page->chain != NULL && atomic_read(&page->chain->ref_counter));
+
+    int r = test_bit(PG_referenced, &page->flags);
+
+    if (!r) {
+        spin_lock(&page->chain_lock);
+	if (page->chain != NULL)
+	    r = atomic_read(&page->chain->ref_counter);
+	spin_unlock(&page->chain_lock);
+    }
+  
+    return r;
 }
 
 /* added to return true page referenced value. */
 static inline int __PageReferenced(struct page * page) {
-  return test_bit(PG_referenced, &page->flags);
+    return test_bit(PG_referenced, &page->flags);
 }
 
 static inline void SetPageReferenced(struct page * p) {
-  set_bit(PG_referenced, &p->flags);
-  if (p->chain != NULL) {
-    atomic_inc(&p->chain->ref_counter);
-  }
+    set_bit(PG_referenced, &p->flags);
+
+    spin_lock(&p->chain_lock);
+    if (p->chain != NULL)
+        atomic_inc(&p->chain->ref_counter);
+    spin_unlock(&p->chain_lock);
 }
 
 static inline void ClearPageReferenced(struct page * p) {
-  clear_bit(PG_referenced, &p->flags);
-  if (p->chain != NULL) {
-    atomic_dec(&p->chain->ref_counter);
-  }
+    clear_bit(PG_referenced, &p->flags);
+    
+    spin_lock(&p->chain_lock);
+    if (p->chain != NULL) 
+        atomic_dec(&p->chain->ref_counter);
+    spin_unlock(&p->chain_lock);
 }
 
 static inline int TestClearPageReferenced(struct page * page) {
-  int v = test_and_clear_bit(PG_referenced, &page->flags);
+    int v = test_and_clear_bit(PG_referenced, &page->flags);
 
-  if (page->chain != NULL) {
-    if (v)
-      atomic_dec(&page->chain->ref_counter);
-    v |= atomic_read(&page->chain->ref_counter);
-  } 
-
-  return v;
+    spin_lock(&page->chain_lock);
+    if (page->chain != NULL) {
+        if (v)
+	    atomic_dec(&page->chain->ref_counter);
+	v |= atomic_read(&page->chain->ref_counter);
+    } 
+    spin_unlock(&page->chain_lock);
+    
+    return v;
 }
-
 /* mcpq-end */
 
 #endif /* !__GENERATING_BOUNDS_H */

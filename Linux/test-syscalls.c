@@ -7,7 +7,7 @@
 
 #define TEST_RESULT(r, e) r == e ? "passed" : mchain_strerror(errno)
 
-#define NPAGES 500
+#define NPAGES 10
 #define LENGTH sizeof(int) * 1024 * NPAGES
 
 void exec_test_suite();
@@ -29,7 +29,7 @@ void exec_test_suite() {
     &test_link_static,
     NULL
   };
-  
+  fprintf(stderr, "running");
   int f = 0;
   for ( ; test_suite[f]; f++) {
     (*test_suite[f])();
@@ -41,7 +41,7 @@ void test_link_static() {
 
   int test_nr = 1;
   int chain = mchain();
-  int array[LENGTH];
+  int array[5000];
   int r = 0;
 
   fprintf(stdout, 
@@ -64,20 +64,43 @@ void test_link_dynamic() {
   int test_nr = 1;
   int chain = mchain();;
   int * array = malloc(LENGTH);
+  int counts[100];
   int r = 0;
+
+  memset(counts, 0, sizeof(counts));
 
   fprintf(stdout, 
 	  "Test: Link Dynamically Allocated Memory\n"	\
 	  "=======================================\n");
 
-  r = mlink(chain, array, LENGTH);
-  fprintf(stdout, "Test %d: Link Pages On Heap. Result=%s %p\n", test_nr++,
-	  TEST_RESULT(r, 0), array);      
+  if (array) {
+    int i = 0;
+    fprintf(stdout, "Test %d: Link Pages On Heap. Result=%s\n", test_nr++,
+	    TEST_RESULT(r, 0));
+    
+    r = mlink(chain, array, LENGTH);
 
-  r = rls_mchain(chain);
-  fprintf(stdout, "Test %d: Release Memory Chain. Result=%s\n", test_nr++,
-	  TEST_RESULT(r, 0));
+    /* initialize array. */
+    for (i = 0; i < LENGTH; i++) {
+      array[i] = 0;
+    }
 
+    /* set array to random value. */
+    for (i = 0; i < LENGTH; i++) {
+      array[i] = rand() % (sizeof(counts) / sizeof(counts[0]));
+    }
+    
+    /* count each unique value. */
+    for (i = 0; i < LENGTH; i++) {
+        counts[array[i]]++;
+    }
+
+    r = rls_mchain(chain);
+    fprintf(stdout, "Test %d: Release Memory Chain. Result=%s\n", test_nr++,
+	    TEST_RESULT(r, 0));
+    
+    free(array);
+  }
   fprintf(stdout, "Test Complete\n");
 
 }
