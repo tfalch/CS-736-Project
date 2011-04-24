@@ -9,3 +9,4 @@ page_alloc.c -> mm/
 sched.h -> include/linux/
 fork.c -> kernel/
 exit.c -> kernel/
+internal.h -> mm/

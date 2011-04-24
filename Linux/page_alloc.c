@@ -662,6 +662,12 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 	arch_free_page(page, order);
 	kernel_map_pages(page, 1 << order, 0);
 
+	/* mcpq: begin remove chain from chained list. */
+	if (page->chain != NULL) {
+	    __unlink_page(page);
+	}
+	/* mcpq-end */
+
 	return true;
 }
 
@@ -779,9 +785,11 @@ static int prep_new_page(struct page *page, int order, gfp_t gfp_flags)
 	if (order && (gfp_flags & __GFP_COMP))
 		prep_compound_page(page, order);
 
+	/* mcpq:begin intialize chain list. */
 	page->chain = NULL;
 	page->next = NULL;
 	page->prev = NULL;
+	/* mcpq:end */
 
 	return 0;
 }

@@ -14,12 +14,11 @@
 #define DEBUG 1
 #endif 
 
-/* uncomment to disable DEBUG_PRINT for production testing */
-/*
+/* comment/uncomment to enable/disable DEBUG_PRINT */
 #ifdef DEBUG
 #undef DEBUG
 #endif
-*/
+
 #ifdef DEBUG
 #define PRINT_FX_NAME printk(KERN_EMERG __FUNCTION__);
 #define PRINT_LOCATION printk(KERN_EMERG __LINE__);
@@ -78,7 +77,7 @@ static void inline __reset_page(struct page * page,
  * @description unlinks the specified page from containing chain.
  * @inparam pg page object to be unlinked.
  */
-static void __unlink_page(struct page * pg) {
+void __unlink_page(struct page * pg) {
     memory_chain_t * chain = pg->chain;
 
     if (chain != NULL) {

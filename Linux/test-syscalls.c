@@ -7,7 +7,7 @@
 
 #define TEST_RESULT(r, e) r == e ? "passed" : mchain_strerror(errno)
 
-#define NPAGES 5
+#define NPAGES 500
 #define LENGTH sizeof(int) * 1024 * NPAGES
 
 void exec_test_suite();
@@ -71,8 +71,8 @@ void test_link_dynamic() {
 	  "=======================================\n");
 
   r = mlink(chain, array, LENGTH);
-  fprintf(stdout, "Test %d: Link Pages On Heap. Result=%s\n", test_nr++,
-	  TEST_RESULT(r, 0));      
+  fprintf(stdout, "Test %d: Link Pages On Heap. Result=%s %p\n", test_nr++,
+	  TEST_RESULT(r, 0), array);      
 
   r = rls_mchain(chain);
   fprintf(stdout, "Test %d: Release Memory Chain. Result=%s\n", test_nr++,
