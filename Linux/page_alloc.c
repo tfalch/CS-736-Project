@@ -662,9 +662,18 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 	arch_free_page(page, order);
 	kernel_map_pages(page, 1 << order, 0);
 
-	/* mcpq: begin remove chain from chained list. */
+	/* mcpq: begin remove chain from chained list. 
+	   this section has a data race between null check
+	   and lock. 
+	*/
 	if (page->chain != NULL) {
+	    spinlock_t * lock = &page->chain->lock; // data race. 
+
+	    spin_lock(lock);
 	    __unlink_page(page);
+	    spin_unlock(lock);
+	    
+	    printk(KERN_EMERG "page freed before being released from chain\n");
 	}
 	/* mcpq-end */
 

@@ -900,6 +900,17 @@ static void check_stack_usage(void)
 static inline void check_stack_usage(void) {}
 #endif
 
+/*
+ * set any unreleased pages to empty chain container. 
+ */
+static inline void unlink_chain(struct memory_chain * c) {
+  
+  struct page * p = c->head;
+  for ( ; p != NULL; p = p->next)
+      p->chain = NULL; // potential data race.
+  
+}
+
 NORET_TYPE void do_exit(long code)
 {
 	struct task_struct *tsk = current;
@@ -998,28 +1009,43 @@ NORET_TYPE void do_exit(long code)
 	       once move to bitmap, this constraint will no longer be valid.
 	    */
 	    for (; i < mcc->capacity && mcc->count > 0; i++) {
-	      /* i = i + 0; */
+	        /* i = i + 0; */
 	        if (chains[i]) {
+		    if (chains[i]->attributes)
+		        kfree(chains[i]->attributes);
+		    unlink_chain(chains[i]);
 		    kfree(chains[i]);
 		    mcc->count--;
 		}
 		/* i = i + 1; */
 		if (chains[++i]) {
+		    if (chains[i]->attributes)
+		        kfree(chains[i]->attributes);
+		    unlink_chain(chains[i]);
 		    kfree(chains[i]);
 		    mcc->count--;
 		}
 		/* i = i + 2; */
 		if (chains[++i]) {
+		    if (chains[i]->attributes)
+		        kfree(chains[i]->attributes);
+		    unlink_chain(chains[i]);
 		    kfree(chains[i]);
 		    mcc->count--;
 		}
 		/* i = i + 3; */
 		if (chains[++i]) {
+		    if (chains[i]->attributes)
+		        kfree(chains[i]->attributes);
+		    unlink_chain(chains[i]);
 		    kfree(chains[i]);
 		    mcc->count--;
 		}
 		/* i = i + 4; */
 		if (chains[++i]) {
+		    if (chains[i]->attributes)
+		        kfree(chains[i]->attributes);
+		    unlink_chain(chains[i]);
 		    kfree(chains[i]);
 		    mcc->count--;
 		}

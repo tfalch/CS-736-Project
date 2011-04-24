@@ -482,10 +482,17 @@ static inline int page_has_private(struct page *page)
 	return !!(page->flags & PAGE_FLAGS_PRIVATE);
 }
 
-/* overwritten default inline functions */
+/* mcpq-begin: overwritten default inline functions 
+   data races are present when checking for NULL and
+   performing read. */
 static inline int PageReferenced(struct page * page) {
   return test_bit(PG_referenced, &page->flags) ||
     (page->chain != NULL && atomic_read(&page->chain->ref_counter));
+}
+
+/* added to return true page referenced value. */
+static inline int __PageReferenced(struct page * page) {
+  return test_bit(PG_referenced, &page->flags);
 }
 
 static inline void SetPageReferenced(struct page * p) {
@@ -504,12 +511,17 @@ static inline void ClearPageReferenced(struct page * p) {
 
 static inline int TestClearPageReferenced(struct page * page) {
   int v = test_and_clear_bit(PG_referenced, &page->flags);
+
   if (page->chain != NULL) {
+    if (v)
+      atomic_dec(&page->chain->ref_counter);
     v |= atomic_read(&page->chain->ref_counter);
-    atomic_dec(&page->chain->ref_counter);
   } 
+
   return v;
 }
+
+/* mcpq-end */
 
 #endif /* !__GENERATING_BOUNDS_H */
 

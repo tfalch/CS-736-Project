@@ -117,24 +117,23 @@ typedef enum eviction_policy {
 } eviction_policy_t;
 
 typedef struct memory_chain_attr {
-    atomic_t max_links;
-    atomic_t is_bounded;
-    atomic_t is_anchored;
+    unsigned long max_links;
+    int is_bounded;
+    int is_anchored;
     eviction_policy_t policy;
 } memory_chain_attr_t;
 
 typedef struct memory_chain {
   
-    unsigned int id;                  // chain's identifier
+    unsigned int id; // chain's identifier
     memory_chain_attr_t * attributes; // chain's attributes.
 
-    atomic_t nr_links;    // nr of linked pages..
+    unsigned long nr_links; // nr of linked pages.
     struct page * head;   // head of linked pages.
     struct page * tail;   // tail of linked pages.
     struct page * anchor; // anchored page. last page to be evicted from chain.
-    unsigned long pid;
 
-    atomic_t ref_counter;   // nr of linked pages with PG_reference bit set. 
+    atomic_t ref_counter; // nr of linked pages with PG_reference bit set. 
     struct page * delegate; // linked page most recently accessed.
 
     spinlock_t lock;

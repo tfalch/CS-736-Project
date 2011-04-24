@@ -31,9 +31,9 @@
 
 #define MAX_NUM_CHAINS 5
 
-#define MEMORY_CHAIN_IS_FULL(chain) 0 
-  /*  chain->attributes != NULL && chain->attributes->is_bounded ?	\
-      atomic_read(&chain->nr_links) == chain->attributes->max_links : 0; */
+#define MEMORY_CHAIN_IS_FULL(chain) \
+  chain->attributes != NULL && chain->attributes->is_bounded ? \
+    chain->nr_links >= chain->attributes->max_links : 0
 
 /**
  * @name __new_mem_chain
@@ -43,7 +43,7 @@
  */
 static memory_chain_t * __new_mem_chain(unsigned int id) {
 
-    memory_chain_t * chain = kmalloc(sizeof(memory_chain_t), GFP_KERNEL); //And maybe GPR_ATOMIC?
+    memory_chain_t * chain = kmalloc(sizeof(memory_chain_t), GFP_KERNEL); //| GPR_ATOMIC);
 
     chain->id = id;
     chain->attributes = NULL;
@@ -51,24 +51,22 @@ static memory_chain_t * __new_mem_chain(unsigned int id) {
     chain->tail = NULL;
     chain->anchor = NULL;
     chain->delegate = NULL;
-    atomic_set(&chain->nr_links, 0);
-    
+    chain->nr_links = 0;
     atomic_set(&chain->ref_counter, 0);
+   
     spin_lock_init(&chain->lock);  
 
     return chain;
 }
 
-static void inline __reset_page(struct page * page,
-				int clr_flgs) {
+static void inline __reset_page(struct page * page,int clr_flgs) {
 
     page->next = NULL;
     page->prev = NULL;
     page->chain = NULL;
       
-    if (clr_flgs) {
+    if (clr_flgs && __PageReferenced(page)) {
         ClearPageReferenced(page);
-	ClearPageActive(page);
     }
 }
 
@@ -104,7 +102,7 @@ void __unlink_page(struct page * pg) {
 	    chain->delegate = NULL;
 	}
 	
-	atomic_dec(&chain->nr_links);
+	chain->nr_links--;
 	if (PageReferenced(pg)) {
 	    atomic_dec(&chain->ref_counter);
 	}
@@ -156,14 +154,14 @@ static struct page * __link_page(memory_chain_t * chain, struct page * pg) {
 	chain->head = pg;
     }
     
-    atomic_inc(&chain->nr_links);
+    chain->nr_links++;
     if (PageReferenced(pg)) {
         atomic_inc(&chain->ref_counter);
     }
 
     DEBUG_PRINT("link_page(): added page: %p to chain: %d, "
 		"length(chain) = %d", pg, chain->id, 
-		atomic_read(&chain->nr_links));
+		chain->nr_links);
     
     return victim;
 }
@@ -485,7 +483,7 @@ static void __unlink_chain(memory_chain_t * chain) {
     struct page * tail = NULL;
 
     for (head = chain->head, tail = chain->tail; 
-	 head != NULL && tail != NULL && head <= tail; ) {
+	 head != NULL && tail != NULL; ) {
       
         struct page * next = head->next;
 	struct page * prev = tail->prev;      
@@ -546,6 +544,9 @@ SYSCALL_DEFINE1(rls_mem_chain, unsigned int, c) {
     __unlink_chain(chain);
     spin_unlock(&chain->lock);
  
+    /* release attributes. */
+    if (chain_collection->chains[c]->attributes)
+        kfree(chain_collection->chains[c]->attributes);
     /* release chain object and free its slot. */
     kfree(chain_collection->chains[c]);
     chain_collection->chains[c] = NULL;
