@@ -2,12 +2,13 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #include "mchain.h"
 
 #define TEST_RESULT(r, e) r == e ? "passed" : mchain_strerror(errno)
 
-#define NPAGES 10
+#define NPAGES 50000
 #define LENGTH sizeof(int) * 1024 * NPAGES
 
 void exec_test_suite();
@@ -64,34 +65,38 @@ void test_link_dynamic() {
   int test_nr = 1;
   int chain = mchain();;
   int * array = malloc(LENGTH);
-  int counts[100];
-  int r = 0;
-
-  memset(counts, 0, sizeof(counts));
 
   fprintf(stdout, 
 	  "Test: Link Dynamically Allocated Memory\n"	\
 	  "=======================================\n");
 
   if (array) {
+    int r = 0;
     int i = 0;
+    int n = LENGTH / sizeof(int);
+    int counts[100];
+    int unique = sizeof(counts) / sizeof(counts[0]);
+
+    memset(counts, 0, sizeof(counts));
+
     fprintf(stdout, "Test %d: Link Pages On Heap. Result=%s\n", test_nr++,
 	    TEST_RESULT(r, 0));
     
     r = mlink(chain, array, LENGTH);
 
     /* initialize array. */
-    for (i = 0; i < LENGTH; i++) {
+    for (i = 0; i < n; i++) {
       array[i] = 0;
     }
 
     /* set array to random value. */
-    for (i = 0; i < LENGTH; i++) {
-      array[i] = rand() % (sizeof(counts) / sizeof(counts[0]));
+    for (i = 0; i < n; i++) {
+      array[i] = abs(rand()) % unique;
+      assert(array[i] >= 0 && array[i] < unique);
     }
     
     /* count each unique value. */
-    for (i = 0; i < LENGTH; i++) {
+    for (i = 0; i < n; i++) {
         counts[array[i]]++;
     }
 
