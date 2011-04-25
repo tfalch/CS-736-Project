@@ -668,6 +668,7 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 	    spinlock_t * lock = &page->chain->lock; 
 
 	    spin_lock(lock);
+
 	    if (unlikely(page->chain->anchor == page))
 	        page->chain->anchor = NULL;
 	    __unlink_page(page);

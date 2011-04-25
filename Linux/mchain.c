@@ -252,7 +252,7 @@ static inline struct page * __get_user_page(struct vm_area_struct * vma,
 					    unsigned long addr) {
   
     int counter = 0;
-    int foll_flags = FOLL_TOUCH;
+    int foll_flags = FOLL_TOUCH | FOLL_FORCE;
     struct page * page= NULL;
 
     cond_resched();
@@ -304,7 +304,7 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
 
     for (addr = start; addr < end; addr += PAGE_SIZE) {
 
-        page = __get_user_page(vma, start);
+        page = __get_user_page(vma, addr);
 		
 	if (page != NULL) {
 	  
@@ -328,12 +328,19 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
 #ifdef VERIFY_FLG // validation check. 
     {
         int nonblocking = 0;
-        int nr_pages = (end - addr) / PAGE_SIZE;
+        int nr_pages = (end - start) / PAGE_SIZE;
 	struct page ** pages = kmalloc(sizeof(struct page *) * nr_pages, 
 				       GFP_KERNEL);
-	int n = __get_user_pages(current, vma->vm_mm, addr, nr_pages,
-				 FOLL_TOUCH, pages, NULL, &nonblocking);
+	int n = 0;
 	int i = 0;
+	
+	down_read(&vma->vm_mm->mmap_sem);
+	n = __get_user_pages(current, vma->vm_mm, start, nr_pages,
+			     FOLL_TOUCH, pages, NULL, &nonblocking);
+	up_read(&vma->vm_mm->mmap_sem);
+
+	DEBUG_PRINT("nr-links=%lu, nr-pages=%d, n=%d",
+		    chain->nr_links, nr_pages, n);
 	for (i = 0; i < n; i++) {
 	    if (pages[i]->chain != chain) {
 	        printk(KERN_EMERG "pages[%d] at %p has invalid container. " \
@@ -538,7 +545,7 @@ SYSCALL_DEFINE1(rls_mem_chain, unsigned int, c) {
     
     int error = -1;
     memory_chain_t * chain = NULL;
-    struct memory_chain_collection * chain_collection = current->mcc;
+    struct memory_chain_collection * chain_collection = current->mcc; 
     
     /* acquire chain collection's lock. */
     spin_lock(&chain_collection->lock);
@@ -551,6 +558,12 @@ SYSCALL_DEFINE1(rls_mem_chain, unsigned int, c) {
     }
 
     spin_lock(&chain->lock);
+    DEBUG_PRINT("rls_mem_chain(): releasing memory chain %d. #(links)=%d",
+		chain->id, chain->nr_links);
+
+    printk(KERN_EMERG 
+	   "rls_mem_chain(): releasing memory chain %d. #(links)=%d",
+	   chain->id, chain->nr_links);
     __unlink_chain(chain);
     spin_unlock(&chain->lock);
  
