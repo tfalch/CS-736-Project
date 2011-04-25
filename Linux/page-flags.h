@@ -495,12 +495,7 @@ static inline int PageReferenced(struct page * page) {
     }
   
     return r;
-}
-
-/* added to return true page referenced value. */
-static inline int __PageReferenced(struct page * page) {
-    return test_bit(PG_referenced, &page->flags);
-}
+}}
 
 static inline void SetPageReferenced(struct page * p) {
     set_bit(PG_referenced, &p->flags);
@@ -512,10 +507,10 @@ static inline void SetPageReferenced(struct page * p) {
 }
 
 static inline void ClearPageReferenced(struct page * p) {
-    clear_bit(PG_referenced, &p->flags);
+    int is_set = test_and_clear_bit(PG_referenced, &p->flags);
     
     spin_lock(&p->chain_lock);
-    if (p->chain != NULL) 
+    if (is_set && p->chain != NULL) 
         atomic_dec(&p->chain->ref_counter);
     spin_unlock(&p->chain_lock);
 }
@@ -533,6 +528,15 @@ static inline int TestClearPageReferenced(struct page * page) {
     
     return v;
 }
+
+/* added to return true page referenced value. */
+static inline int __PageReferenced(struct page * page) {
+    return test_bit(PG_referenced, &page->flags);
+}
+
+static inline void __ClearPageReferenced(struct page * page) {
+    clear_bit(PG_referenced, &page->flags);
+
 /* mcpq-end */
 
 #endif /* !__GENERATING_BOUNDS_H */
