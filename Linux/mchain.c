@@ -207,22 +207,22 @@ SYSCALL_DEFINE0(new_mem_chain) {
         /* determine # of open chains */
         if (chain_collection->count < chain_collection->capacity) {
 
-	    slot = __find_free_slot(chain_collection->chains,
+	    	slot = __find_free_slot(chain_collection->chains,
 				    chain_collection->capacity);
-	    chain_collection->chains[slot] = __new_mem_chain(slot);
-	    chain_collection->count++;
-	}
+	    	chain_collection->chains[slot] = __new_mem_chain(slot);
+	    	chain_collection->count++;
+		}
     } else {
         chain_collection->chains = kmalloc(sizeof(memory_chain_t *) * 
 					   MAX_NUM_CHAINS, GFP_KERNEL);
-	/* zero out chain array */
-	memset(chain_collection->chains, 0, 
+		/* zero out chain array */
+		memset(chain_collection->chains, 0, 
 	       sizeof(memory_chain_t *) * MAX_NUM_CHAINS); 
 
-	/* assign chain to first slot */
-	chain_collection->chains[0] = __new_mem_chain(slot = 0);
-	chain_collection->capacity = MAX_NUM_CHAINS;
-	chain_collection->count = 1;
+		/* assign chain to first slot */
+		chain_collection->chains[0] = __new_mem_chain(slot = 0);
+		chain_collection->capacity = MAX_NUM_CHAINS;
+		chain_collection->count = 1;
     }
 
     DEBUG_PRINT("new_mem_chain(): tsk[chains=%p, nr=%d, max=%d, slot=%d]",
@@ -258,14 +258,15 @@ static inline struct page * __get_user_page(struct vm_area_struct * vma,
     cond_resched();
     while (!(page = follow_page(vma, addr, foll_flags))) {
         unsigned int fault_flags = FAULT_FLAG_ALLOW_RETRY;
-	int ret = handle_mm_fault(vma->vm_mm, vma, addr,
+		int ret = handle_mm_fault(vma->vm_mm, vma, addr,
 				   fault_flags);
 
-	if (ret & VM_FAULT_ERROR)
-	    return NULL;
+		if (ret & VM_FAULT_ERROR){
+	    	return NULL;
+		}
 
-	counter++;
-	cond_resched();
+		counter++;
+		cond_resched();
     }
 
     return page;
@@ -306,51 +307,51 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
 
         page = __get_user_page(vma, addr);
 		
-	if (page != NULL) {
+		if (page != NULL) {
 	  
-	    spin_lock(&page->chain_lock);
-	    __link_page(chain, page);
+	    	spin_lock(&page->chain_lock);
+	    	__link_page(chain, page);
 
-	    if (unlikely(start == anchor)) 
-	        chain->anchor = page;
+	    	if (unlikely(start == anchor)) 
+	        	chain->anchor = page;
 
-	    spin_unlock(&page->chain_lock);
+	    	spin_unlock(&page->chain_lock);
 	    
-	    DEBUG_PRINT("mlink_vma_pages_range(): linked(address): %lu " \
+	    	DEBUG_PRINT("mlink_vma_pages_range(): linked(address): %lu " \
 			"in vma: %lu", start, (unsigned long)vma);
-	} else {
-	    DEBUG_PRINT("mlink_vma_pages_range(): no page found at %lu\n", 
-			start);
-	    break;
-	}
+		} else {
+	    	DEBUG_PRINT("mlink_vma_pages_range(): no page found at %lu\n", 
+				start);
+	    	break;
+		}
     }
 
 #ifdef VERIFY_FLG // validation check. 
     {
         int nonblocking = 0;
         int nr_pages = (end - start) / PAGE_SIZE;
-	struct page ** pages = kmalloc(sizeof(struct page *) * nr_pages, 
+		struct page ** pages = kmalloc(sizeof(struct page *) * nr_pages, 
 				       GFP_KERNEL);
-	int n = 0;
-	int i = 0;
+		int n = 0;
+		int i = 0;
 	
-	down_read(&vma->vm_mm->mmap_sem);
-	n = __get_user_pages(current, vma->vm_mm, start, nr_pages,
+		down_read(&vma->vm_mm->mmap_sem);
+		n = __get_user_pages(current, vma->vm_mm, start, nr_pages,
 			     FOLL_TOUCH, pages, NULL, &nonblocking);
-	up_read(&vma->vm_mm->mmap_sem);
+		up_read(&vma->vm_mm->mmap_sem);
 
-	DEBUG_PRINT("nr-links=%lu, nr-pages=%d, n=%d",
+		DEBUG_PRINT("nr-links=%lu, nr-pages=%d, n=%d",
 		    chain->nr_links, nr_pages, n);
-	for (i = 0; i < n; i++) {
-	    if (pages[i]->chain != chain) {
-	        printk(KERN_EMERG "pages[%d] at %p has invalid container. " \
+		for (i = 0; i < n; i++) {
+	    	if (pages[i]->chain != chain) {
+	        	printk(KERN_EMERG "pages[%d] at %p has invalid container. " \
 		       "expected %p, but found %p", i, pages[i], chain, 
 		       pages[i]->chain);
-	    }
-	    BUG_ON(pages[i]->chain != chain);
-	}
+	    	}
+	    	BUG_ON(pages[i]->chain != chain);
+		}
 
-	kfree(pages);
+		kfree(pages);
     }
 #endif
     
@@ -383,7 +384,7 @@ static long do_mlink_pages(struct memory_chain * chain,
 
     /* check valid vma returned. */
     if (!vma || vma->vm_start >= end)
-        return 0;
+        return -1;
 
     DEBUG_PRINT("do_mlink_pages(): range[start=%lu, end=%lu]", start, end);
 
@@ -391,20 +392,21 @@ static long do_mlink_pages(struct memory_chain * chain,
 
         /* determine if current address lies outside range 
 	   of current vma; if so move to next vma. */
-	if (s >= vma->vm_end) 
-	    vma = vma->vm_next;
+		if (s >= vma->vm_end) 
+	    	vma = vma->vm_next;
 
-	if (!vma || vma->vm_start >= end) 
-	    break;
+		if (!vma || vma->vm_start >= end){
+			return -1;
+		}
 
-	/* determine current vma's end address. */
-	e = end < vma->vm_end ? end : vma->vm_end;
+		/* determine current vma's end address. */
+		e = end < vma->vm_end ? end : vma->vm_end;
       
-	/* determine current vma's start address. */
+		/* determine current vma's start address. */
         if (s < vma->vm_start)
-	    s = vma->vm_start;
+	    	s = vma->vm_start;
 
-	r = __mlink_vma_pages_range(chain, vma, s, e, anchor);
+		r = __mlink_vma_pages_range(chain, vma, s, e, anchor);
     }
 
     return r;
@@ -448,7 +450,7 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
 
 SYSCALL_DEFINE2(anchor, unsigned int, c, unsigned long, addr) {
 
-  int error = -1; // Error code Invalid chain descriptor.
+  	int error = -1; // Error code Invalid chain descriptor.
     unsigned long len = 0;
 
     struct memory_chain * chain = NULL;
@@ -495,21 +497,21 @@ static void __unlink_chain(memory_chain_t * chain) {
     struct page * tail = NULL;
 
     for (head = chain->head, tail = chain->tail; 
-	 head != NULL && tail != NULL; ) {
+	 	head != NULL && tail != NULL; ) {
       
         struct page * next = head->next;
-	struct page * prev = tail->prev;      
+		struct page * prev = tail->prev;      
 	
-	spin_lock(&head->chain_lock);
-	__reset_page(head, 1);
-	spin_unlock(&head->chain_lock);
+		spin_lock(&head->chain_lock);
+		__reset_page(head, 1);
+		spin_unlock(&head->chain_lock);
 
-	spin_lock(&tail->chain_lock);
-	__reset_page(tail, 1);
-	spin_unlock(&tail->chain_lock);
+		spin_lock(&tail->chain_lock);
+		__reset_page(tail, 1);
+		spin_unlock(&tail->chain_lock);
 	
-	head = next;
-	tail = prev;
+		head = next;
+		tail = prev;
     }
 
     atomic_set(&chain->ref_counter, 0);
@@ -561,15 +563,13 @@ SYSCALL_DEFINE1(rls_mem_chain, unsigned int, c) {
     DEBUG_PRINT("rls_mem_chain(): releasing memory chain %d. #(links)=%d",
 		chain->id, chain->nr_links);
 
-    printk(KERN_EMERG 
-	   "rls_mem_chain(): releasing memory chain %d. #(links)=%d",
-	   chain->id, chain->nr_links);
     __unlink_chain(chain);
     spin_unlock(&chain->lock);
  
     /* release attributes. */
     if (chain_collection->chains[c]->attributes)
         kfree(chain_collection->chains[c]->attributes);
+
     /* release chain object and free its slot. */
     kfree(chain_collection->chains[c]);
     chain_collection->chains[c] = NULL;
