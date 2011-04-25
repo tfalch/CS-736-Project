@@ -8,7 +8,7 @@
 #include "internal.h"
 
 /* comment out for production testing. */
-#define VERIFY_FLG 1
+#define VERIFY_FLG 0 // Blocking for large page sizes. disabling.
 
 #ifndef DEBUG
 #define DEBUG 1
@@ -29,6 +29,7 @@
 #define DEBUG_PRINT(fmt, ...)
 #endif
 
+#define MAX_PAGE_RETRIEVAL_ATTEMPTS 2
 #define MAX_NUM_CHAINS 5
 
 #define MEMORY_CHAIN_IS_FULL(chain) \
@@ -261,10 +262,21 @@ static inline struct page * __get_user_page(struct vm_area_struct * vma,
 	int ret = handle_mm_fault(vma->vm_mm, vma, addr,
 				   fault_flags);
 
-	if (ret & VM_FAULT_ERROR)
+	if (ret & VM_FAULT_ERROR ||
+	    ret & VM_FAULT_RETRY) {
+
+	    DEBUG_PRINT("Failed to get page at address: %lu",
+			addr);
 	    return NULL;
+	}
 
 	counter++;
+	if (counter >= MAX_PAGE_RETRIEVAL_ATTEMPTS) {
+	  DEBUG_PRINT("Too many attempts to retrieve page at address: %lu",
+		      addr);
+	  break;
+	}
+	  
 	cond_resched();
     }
 
@@ -320,8 +332,7 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
 			"in vma: %lu", start, (unsigned long)vma);
 	} else {
 	    DEBUG_PRINT("mlink_vma_pages_range(): no page found at %lu\n", 
-			start);
-	    break;
+			addr);
 	}
     }
 
@@ -339,15 +350,19 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
 			     FOLL_TOUCH, pages, NULL, &nonblocking);
 	up_read(&vma->vm_mm->mmap_sem);
 
-	DEBUG_PRINT("nr-links=%lu, nr-pages=%d, n=%d",
-		    chain->nr_links, nr_pages, n);
+	DEBUG_PRINT("nr-links=%lu, nr-pages=%d, n=%d", chain->nr_links, 
+		    nr_pages, n);
+
 	for (i = 0; i < n; i++) {
-	    if (pages[i]->chain != chain) {
-	        printk(KERN_EMERG "pages[%d] at %p has invalid container. " \
-		       "expected %p, but found %p", i, pages[i], chain, 
-		       pages[i]->chain);
+	    if (pages[i] != NULL) {
+	        if (pages[i]->chain != chain) {
+		  printk(KERN_EMERG "pages[%d] at %p has invalid container. " \
+			 "expected %p, but found %p", i, pages[i], chain, 
+			 pages[i]->chain);
+		}
+		
+		BUG_ON(pages[i]->chain != chain);
 	    }
-	    BUG_ON(pages[i]->chain != chain);
 	}
 
 	kfree(pages);
@@ -383,7 +398,7 @@ static long do_mlink_pages(struct memory_chain * chain,
 
     /* check valid vma returned. */
     if (!vma || vma->vm_start >= end)
-        return 0;
+        return -1;
 
     DEBUG_PRINT("do_mlink_pages(): range[start=%lu, end=%lu]", start, end);
 
