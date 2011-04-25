@@ -8,7 +8,8 @@
 #include "internal.h"
 
 /* comment out for production testing. */
-#define VERIFY_FLG 0 // Blocking for large page sizes. disabling.
+#define VERIFY_FLG 1 
+#undef VERIFY_FLG // Blocking for large page sizes. disabling.
 
 #ifndef DEBUG
 #define DEBUG 1
@@ -61,13 +62,15 @@ static memory_chain_t * __new_mem_chain(unsigned int id) {
 }
 
 static void inline __reset_page(struct page * page,int clr_flgs) {
-
+  
+    struct memory_chain * chain = page->chain;
     page->next = NULL;
     page->prev = NULL;
     page->chain = NULL;
       
     if (clr_flgs && __PageReferenced(page)) {
-        ClearPageReferenced(page);
+        __ClearPageReferenced(page);
+	atomic_dec(&chain->ref_counter);
     }
 }
 
@@ -506,25 +509,15 @@ SYSCALL_DEFINE2(unlink_addr_rng, unsigned long, start, size_t, length) {
  */
 static void __unlink_chain(memory_chain_t * chain) {
 
-    struct page * head = NULL;
-    struct page * tail = NULL;
+    struct page * head = chain->head;
+    struct page * next = NULL;
 
-    for (head = chain->head, tail = chain->tail; 
-	 head != NULL && tail != NULL; ) {
-      
-        struct page * next = head->next;
-	struct page * prev = tail->prev;      
-	
+    for (; head != NULL; head = next) {
+
+        next = head->next;
 	spin_lock(&head->chain_lock);
 	__reset_page(head, 1);
 	spin_unlock(&head->chain_lock);
-
-	spin_lock(&tail->chain_lock);
-	__reset_page(tail, 1);
-	spin_unlock(&tail->chain_lock);
-	
-	head = next;
-	tail = prev;
     }
 
     atomic_set(&chain->ref_counter, 0);
