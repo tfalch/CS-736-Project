@@ -495,7 +495,7 @@ static inline int PageReferenced(struct page * page) {
     }
   
     return r;
-}}
+}
 
 static inline void SetPageReferenced(struct page * p) {
     set_bit(PG_referenced, &p->flags);
