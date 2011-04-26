@@ -842,6 +842,7 @@ asmlinkage long sys_anchor(unsigned int c, unsigned long addr);
 asmlinkage long sys_unlink_addr_rng(unsigned long start, size_t length);
 asmlinkage long sys_brk_mem_chain(unsigned int c);
 asmlinkage long sys_rls_mem_chain(unsigned int c);
+asmlinkage long sys_hate(unsigned long start, size_t length);
 
 
 

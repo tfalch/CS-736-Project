@@ -633,3 +633,10 @@ SYSCALL_DEFINE1(rls_mem_chain, unsigned int, c) {
     
     return 0; // Success
 }
+
+SYSCALL_DEFINE2(hate, unsigned long, start,
+		size_t, len) {
+	printk(KERN_EMERG "HATE");
+	return 0;
+}
+		

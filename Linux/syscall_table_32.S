@@ -348,3 +348,4 @@ ENTRY(sys_call_table)
 	.long sys_unlink_addr_rng       /* 345 */
 	.long sys_brk_mem_chain
 	.long sys_rls_mem_chain
+	.long sys_hate

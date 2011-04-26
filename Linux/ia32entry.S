@@ -859,4 +859,5 @@ ia32_sys_call_table:
 	.quad sys_unlink_addr_rng      /* 345 */
 	.quad sys_brk_mem_chain
 	.quad sys_rls_mem_chain
+	.quad sys_hate
 ia32_syscall_end:
