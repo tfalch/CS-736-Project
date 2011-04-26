@@ -20,7 +20,7 @@
 					   cid, (addr))
 #define mlink(cid, start, len) syscall(NR_sys_link_addr_rng, cid, (start), len)
 #define anchor(cid, addr) syscall(NR_sys_anchor, cid, (addr))
-#define munlink(start, len) syscall(NR_sys_unlink_addr_rng, (start), len)
+#define munlink(cid, start, len) syscall(NR_sys_unlink_addr_rng, cid, (start), len)
 #define brk_mchain(cid) syscall(NR_sys_brk_mem_chain, cid)
 #define rls_mchain(cid) syscall(NR_sys_rls_mem_chain, cid)
 #define hate(start, len) syscall(NR_sys_hate, start, len)

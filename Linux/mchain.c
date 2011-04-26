@@ -525,7 +525,7 @@ SYSCALL_DEFINE2(anchor, unsigned int, c, unsigned long, addr) {
     return 0;
 }
 
-SYSCALL_DEFINE2(unlink_addr_rng, unsigned long, start, size_t, length) {
+SYSCALL_DEFINE3(unlink_addr_rng, unsigned int c, unsigned long, start, size_t, length) {
     return 0;
 }
 
