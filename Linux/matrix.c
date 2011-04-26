@@ -122,7 +122,7 @@ int main(int argc, char** argv){
 			}
 		}
 		if(love){
-			munlink(row, sizeof(row));
+			brk_mchain(cid);
 			//hate col
 			//hate matrix[i][j]
 		}

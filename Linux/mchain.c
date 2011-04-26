@@ -495,7 +495,7 @@ SYSCALL_DEFINE2(anchor, unsigned int, c, unsigned long, addr) {
     struct memory_chain_collection * chain_collection = current->mcc;
 
     if (chain_collection == NULL) {
-	return -1;
+		return -1;
     }
     
     /* acquire chain collection's lock. */
@@ -525,7 +525,7 @@ SYSCALL_DEFINE2(anchor, unsigned int, c, unsigned long, addr) {
     return 0;
 }
 
-SYSCALL_DEFINE3(unlink_addr_rng, unsigned int c, unsigned long, start, size_t, length) {
+SYSCALL_DEFINE3(unlink_addr_rng, unsigned int, c, unsigned long, start, size_t, length) {
     return 0;
 }
 
@@ -634,9 +634,53 @@ SYSCALL_DEFINE1(rls_mem_chain, unsigned int, c) {
     return 0; // Success
 }
 
-SYSCALL_DEFINE2(hate, unsigned long, start,
-		size_t, len) {
-	printk(KERN_EMERG "HATE");
+int __hate_vma_pages(struct vm_area_struct * vma, 
+				    unsigned long start, unsigned long end){
+	//Check if page is a part of a chain
+	//if not, hate it
 	return 0;
+}
+
+SYSCALL_DEFINE2(hate, unsigned long, start,	size_t, len) {
+			
+	len = PAGE_ALIGN(len + (start & ~PAGE_MASK));
+    start &= PAGE_MASK;
+			
+	int r = -1; // return code.
+    unsigned long end = start + len;
+    unsigned long s = start; // current vma's start address. 
+    unsigned long e = end;   // current vma's end address.
+
+    struct mm_struct * mm = current->mm;
+    struct vm_area_struct * vma = find_vma(mm, s); // retrieve first vma. 
+
+    /* check valid vma returned. */
+    if (!vma || vma->vm_start >= end)
+        return -1;
+
+    DEBUG_PRINT("hate(): range[start=%lu, end=%lu]", start, end);
+
+    for (s = start; s < end; s = e) {
+
+        /* determine if current address lies outside range 
+	   of current vma; if so move to next vma. */
+		if (s >= vma->vm_end) 
+		    vma = vma->vm_next;
+
+		if (!vma || vma->vm_start >= end){
+		    return -1;
+		}
+
+		/* determine current vma's end address. */
+		e = end < vma->vm_end ? end : vma->vm_end;
+      
+		/* determine current vma's start address. */
+        if (s < vma->vm_start)
+	    	s = vma->vm_start;
+
+		r = __hate_vma_pages(vma, s, e);
+    }
+
+    return r;
 }
 		
