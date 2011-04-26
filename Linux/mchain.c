@@ -86,22 +86,25 @@ void __unlink_page(struct page * pg) {
 
     if (chain != NULL) {
 
-        if (pg->prev == NULL) { // head of chain
+        if (chain->head == pg) { // head of chain
 	    chain->head = pg->next;
 	    if (chain->head != NULL) {
 	        chain->head->prev = NULL;;
+	    } else {
+	      chain->tail = NULL;
 	    }
 	} else {
 	    struct page * previous = pg->prev;
 	  
 	    previous->next = pg->next;
-	    if (pg->next != NULL) // not tail of chain
+	    if (pg->next != chain->tail) // not tail of chain
 	        pg->next->prev = previous;
 	    else 
 	        chain->tail = previous;
 	}
 
 	if (chain->anchor == pg) {
+	    sys_munlock(0, PAGE_SIZE); // TODO: 
 	    chain->anchor = NULL;
 	}
 
@@ -110,15 +113,16 @@ void __unlink_page(struct page * pg) {
 	}
 	
 	chain->nr_links--;
-	if (!__PageReferenced(pg)) {
+	if (__PageReferenced(pg)) {
 	    atomic_dec(&chain->ref_counter);
 	}
 
 	__reset_page(pg, 0);
 
-	DEBUG_PRINT("unlinked %p from chain %u, #(links)=%lu, "	 \
-		    "ref_counter=%d", pg, chain->id, chain->nr_links, 
-		    atomic_read(&chain->ref_counter));
+	DEBUG_PRINT("unlinked %p from chain %u, #(links)=%lu, ref_counter=%d" \
+		    ", head=%p], tail=%p", pg, chain->id, chain->nr_links, 
+		    atomic_read(&chain->ref_counter), chain->head,
+		    chain->tail);
     }
 }
 
@@ -341,8 +345,10 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
 	  
 	    __link_page(chain, page);
 	    
-	    if (unlikely(start == anchor)) 
+	    if (unlikely(start == anchor)) {
+	        sys_mlock(addr, PAGE_SIZE);
 	        chain->anchor = page;
+	    }
 
 	    spin_unlock(&page->chain_lock);
 	    
@@ -548,8 +554,12 @@ static void __unlink_chain(memory_chain_t * chain) {
 
         spin_lock(&page->chain_lock);
         next = page->next;
-	__reset_page(page, 0);
+	__reset_page(page, 1);
 	spin_unlock(&page->chain_lock);
+    }
+
+    if (chain->anchor != NULL) {
+        sys_munlock(0, PAGE_SIZE); // TODO:
     }
 
     /* reset chain values */
