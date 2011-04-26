@@ -1,9 +1,38 @@
+//Compile with : gcc -std=c99 -lm matrix.c
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
+#include <sys/time.h>
 
 #include "mchain.h"
+
+#define USEC_PER_SEC 1000000
+
+int time_difference(struct timeval * result, 
+		    struct timeval * x, struct timeval * y) {
+
+  int sec = y->tv_sec;
+  int usec = y->tv_usec;
+
+  if (x->tv_usec < usec) {
+    int nsec = (usec - x->tv_usec) / USEC_PER_SEC + 1;
+    usec -= USEC_PER_SEC * nsec;
+    sec += nsec;
+  }
+
+  if (x->tv_usec - usec > USEC_PER_SEC) {
+    int nsec = (x->tv_usec - usec) / USEC_PER_SEC;
+    usec += USEC_PER_SEC * nsec;
+    sec -= nsec;
+  }
+
+  result->tv_sec = x->tv_sec - sec;
+  result->tv_usec = x->tv_usec - usec;
+
+  return 0;
+}
 
 double getRandomNumber(){
 	return 4.0;
@@ -59,17 +88,21 @@ int main(int argc, char** argv){
 
 	struct timeval start;
 	struct timeval stop;
+	struct timeval difference;
 
 	gettimeofday(&start, NULL);
+	
+	int cid;
 
 	if(love){
-		mchain();
+		cid = mchain();
 	}
 
 
 	for(int i = 0; i < matrixSize; i++){
 
 		double* row = firstMatrix[i];
+		
 		if(love){
 			mlink(0, row, sizeof(row));
 		}
@@ -89,13 +122,21 @@ int main(int argc, char** argv){
 			}
 		}
 		if(love){
-			munlink(row, sizeof(row));
+			brk_mchain(cid);
 			//hate col
 			//hate matrix[i][j]
 		}
 	}
+	
+	rls_mchain(cid);
 
 	gettimeofday(&stop, NULL);
+	
+	time_difference(&difference, &stop, &start);
+    	fprintf(stdout, "Done.\n");
+    	fprintf(stdout, 
+	    "Time: %ds %dus\n",
+	    difference.tv_sec, difference.tv_usec);
 	
 
 	return 0;

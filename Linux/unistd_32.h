@@ -354,10 +354,11 @@
 #define __NR_unlink_addr_rng    345
 #define __NR_brk_mem_chain      346
 #define __NR_rls_mem_chain      347
+#define __NR_hate		348
 
 #ifdef __KERNEL__
 
-#define NR_syscalls 348
+#define NR_syscalls 349
 
 #define __ARCH_WANT_IPC_PARSE_VERSION
 #define __ARCH_WANT_OLD_READDIR
