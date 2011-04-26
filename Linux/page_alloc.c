@@ -643,6 +643,7 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 {
 	int i;
 	int bad = 0;
+	struct memory_chain * chain = page->chain;
 
 	trace_mm_page_free_direct(page, order);
 	kmemcheck_free_shadow(page, order);
@@ -655,27 +656,27 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 		return false;
 
 	if (!PageHighMem(page)) {
-		debug_check_no_locks_freed(page_address(page),PAGE_SIZE<<order);
-		debug_check_no_obj_freed(page_address(page),
+	  debug_check_no_locks_freed(page_address(page),PAGE_SIZE<<order);
+	  debug_check_no_obj_freed(page_address(page),
 					   PAGE_SIZE << order);
 	}
 	arch_free_page(page, order);
 	kernel_map_pages(page, 1 << order, 0);
 
-	/* mcpq: begin remove chain from chained list. */
-	spin_lock(&page->chain_lock);
-	if (page->chain != NULL) {
-	    spinlock_t * lock = &page->chain->lock; 
+	/* mcpq:begin remove page from chained list. 
+	   if the page was removed from TOCTTOU, null check in 
+	   __unlink_page will nullify any negative consequences.
+	*/ 
+	if (chain != NULL) {
 
-	    spin_lock(lock);
-
-	    if (unlikely(page->chain->anchor == page))
-	        page->chain->anchor = NULL;
+	    spin_lock(&chain->lock);
+	    spin_lock(&page->chain_lock);
+	    
 	    __unlink_page(page);
 	    
-	    spin_unlock(lock);
+	    spin_unlock(&page->chain_lock);   
+	    spin_unlock(&chain->lock);
 	}
-	spin_unlock(&page->chain_lock);
 	/* mcpq-end */
 
 	return true;

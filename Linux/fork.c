@@ -234,6 +234,7 @@ void __init fork_init(unsigned long mempages)
 	init_task.signal->rlim[RLIMIT_NPROC].rlim_max = max_threads/2;
 	init_task.signal->rlim[RLIMIT_SIGPENDING] =
 		init_task.signal->rlim[RLIMIT_NPROC];
+	init_task.mcc = NULL;
 }
 
 int __attribute__((weak)) arch_dup_task_struct(struct task_struct *dst,
@@ -1473,11 +1474,7 @@ long do_fork(unsigned long clone_flags,
 		}
 
 		/* mcpq-begin: initialize memory chain collection. */
-		p->mcc = kmalloc(sizeof(memory_chains), GFP_KERNEL);
-		p->mcc->count = 0;
-		p->mcc->capacity = 0;
-		p->mcc->chains = NULL;
-		spin_lock_init(&p->mcc->lock);
+		p->mcc = NULL;
 		/* mcpq-end */
 
 	} else {

@@ -904,13 +904,17 @@ static inline void check_stack_usage(void) {}
  * set any residing pages to have null container. 
  */
 static inline void unlink_chain_fast(struct memory_chain * c) {
-  
-  struct page * p = c->head;
-  for ( ; p != NULL; p = p->next) {
-      spin_lock(&p->chain_lock);
-      p->chain = NULL; 
-      spin_unlock(&p->chain_lock);
-  }
+
+    struct page * p = NULL;
+    
+    spin_lock(&c->lock);
+    
+    for (p =c->head; p != NULL; p = p->next) {
+        spin_lock(&p->chain_lock);
+	p->chain = NULL; 
+	spin_unlock(&p->chain_lock);
+    }
+    spin_unlock(&c->lock);
 }
 
 NORET_TYPE void do_exit(long code)
@@ -996,10 +1000,10 @@ NORET_TYPE void do_exit(long code)
 	tsk->exit_code = code;
 	taskstats_exit(tsk, group_dead);
 
-	exit_mm(tsk);
-
 	/* mcpq-begin: free memory chain container */
-	if (tsk->mcc->count > 0) {
+	if (tsk->mcc)
+	  printk(KERN_EMERG "task %d exiting", tsk->pid);
+	if (tsk->mcc && tsk->mcc->count > 0) {
 
 	    int i = 0;
 	    struct memory_chain_collection * mcc = tsk->mcc;
@@ -1056,7 +1060,12 @@ NORET_TYPE void do_exit(long code)
 	}
 	/* free chains container */
 	kfree(tsk->mcc);
+	tsk->mcc = NULL;
+	if (tsk->mcc)
+	  printk(KERN_EMERG "task %d exited", tsk->pid);
 	/* mcpq-end */
+
+	exit_mm(tsk);
 
 	if (group_dead)
 		acct_process();

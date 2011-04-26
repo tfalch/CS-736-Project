@@ -16,6 +16,7 @@
 #endif 
 
 /* comment/uncomment to enable/disable DEBUG_PRINT */
+
 #ifdef DEBUG
 #undef DEBUG
 #endif
@@ -64,6 +65,7 @@ static memory_chain_t * __new_mem_chain(unsigned int id) {
 static void inline __reset_page(struct page * page,int clr_flgs) {
   
     struct memory_chain * chain = page->chain;
+
     page->next = NULL;
     page->prev = NULL;
     page->chain = NULL;
@@ -83,10 +85,11 @@ void __unlink_page(struct page * pg) {
     memory_chain_t * chain = pg->chain;
 
     if (chain != NULL) {
+
         if (pg->prev == NULL) { // head of chain
 	    chain->head = pg->next;
 	    if (chain->head != NULL) {
-	        chain->head->prev = pg->prev;
+	        chain->head->prev = NULL;;
 	    }
 	} else {
 	    struct page * previous = pg->prev;
@@ -95,7 +98,7 @@ void __unlink_page(struct page * pg) {
 	    if (pg->next != NULL) // not tail of chain
 	        pg->next->prev = previous;
 	    else 
-	        chain->tail = pg->prev;
+	        chain->tail = previous;
 	}
 
 	if (chain->anchor == pg) {
@@ -107,11 +110,15 @@ void __unlink_page(struct page * pg) {
 	}
 	
 	chain->nr_links--;
-	if (__PageReferenced(pg)) {
+	if (!__PageReferenced(pg)) {
 	    atomic_dec(&chain->ref_counter);
 	}
 
 	__reset_page(pg, 0);
+
+	DEBUG_PRINT("unlinked %p from chain %u, #(links)=%lu, "	 \
+		    "ref_counter=%d", pg, chain->id, chain->nr_links, 
+		    atomic_read(&chain->ref_counter));
     }
 }
 
@@ -122,10 +129,6 @@ static struct page * __evict_page(memory_chain_t * chain) {
 static struct page * __link_page(memory_chain_t * chain, struct page * pg) {
 
     struct page * victim = NULL;
-    
-    if (unlikely(chain == NULL)) {
-        return NULL;
-    }
     
     // determine if pages is linked to chain previously.
     if (chain == pg->chain) {
@@ -148,8 +151,9 @@ static struct page * __link_page(memory_chain_t * chain, struct page * pg) {
 	spin_unlock(&victim->chain_lock);
     }
 
-    // set page's container.
+    // initialize page
     pg->chain = chain;
+    pg->next = pg->prev = NULL;
 
     // determine if first page. 
     if (unlikely(chain->head == NULL)) {
@@ -162,12 +166,12 @@ static struct page * __link_page(memory_chain_t * chain, struct page * pg) {
     }
     
     chain->nr_links++;
-    if (PageReferenced(pg)) {
+    if (__PageReferenced(pg)) {
         atomic_inc(&chain->ref_counter);
     }
 
     DEBUG_PRINT("link_page(): added page: %p to chain: %d, "
-		"length(chain) = %d", pg, chain->id, 
+		"length(chain) = %lu", pg, chain->id, 
 		chain->nr_links);
     
     return victim;
@@ -200,33 +204,43 @@ static int __find_free_slot(memory_chain_t * array[], size_t len) {
   return -1;
 }
 
+static inline void __init_mcc(struct task_struct * tsk) {
+
+    struct memory_chain_collection * mcc =
+      kmalloc(sizeof(struct memory_chain_collection),
+	      GFP_KERNEL);
+    
+    mcc->count = 0;
+    mcc->capacity = MAX_NUM_CHAINS;;
+    mcc->chains = kmalloc(sizeof(memory_chain_t *) * 
+			  MAX_NUM_CHAINS, GFP_KERNEL);;
+    /* zero out chain array */
+    memset(mcc->chains, 0, 
+	   sizeof(memory_chain_t *) * MAX_NUM_CHAINS); 
+    spin_lock_init(&mcc->lock);
+    
+    tsk->mcc = mcc;
+}
+
 SYSCALL_DEFINE0(new_mem_chain) {
 
     int slot = -2; // error-code: Too many open chains
-    memory_chains * chain_collection = current->mcc;
+    memory_chains * chain_collection = NULL;
+
+    if ((chain_collection = current->mcc) == NULL) {
+        __init_mcc(current);
+	chain_collection = current->mcc;
+    }
 
     spin_lock(&chain_collection->lock);
 
-    if (chain_collection->chains != NULL) {
-        /* determine # of open chains */
-        if (chain_collection->count < chain_collection->capacity) {
-
-	    	slot = __find_free_slot(chain_collection->chains,
-				    chain_collection->capacity);
-	    	chain_collection->chains[slot] = __new_mem_chain(slot);
-	    	chain_collection->count++;
-		}
-    } else {
-        chain_collection->chains = kmalloc(sizeof(memory_chain_t *) * 
-					   MAX_NUM_CHAINS, GFP_KERNEL);
-		/* zero out chain array */
-		memset(chain_collection->chains, 0, 
-	       sizeof(memory_chain_t *) * MAX_NUM_CHAINS); 
-
-		/* assign chain to first slot */
-		chain_collection->chains[0] = __new_mem_chain(slot = 0);
-		chain_collection->capacity = MAX_NUM_CHAINS;
-		chain_collection->count = 1;
+    /* determine # of open chains */
+    if (chain_collection->count < chain_collection->capacity) {
+      
+        slot = __find_free_slot(chain_collection->chains,
+				chain_collection->capacity);
+	chain_collection->chains[slot] = __new_mem_chain(slot);
+	chain_collection->count++;
     }
 
     DEBUG_PRINT("new_mem_chain(): tsk[chains=%p, nr=%d, max=%d, slot=%d]",
@@ -320,18 +334,19 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
     for (addr = start; addr < end; addr += PAGE_SIZE) {
 
         page = __get_user_page(vma, addr);
-		
-		if (page != NULL) {
+	
+	if (page != NULL) {
 	  
-	    	spin_lock(&page->chain_lock);
-	    	__link_page(chain, page);
-
-	    	if (unlikely(start == anchor)) 
-	        	chain->anchor = page;
-
-	    	spin_unlock(&page->chain_lock);
+	    spin_lock(&page->chain_lock);
+	  
+	    __link_page(chain, page);
 	    
-	    	DEBUG_PRINT("mlink_vma_pages_range(): linked(address): %lu " \
+	    if (unlikely(start == anchor)) 
+	        chain->anchor = page;
+
+	    spin_unlock(&page->chain_lock);
+	    
+	    DEBUG_PRINT("mlink_vma_pages_range(): linked(address): %lu " \
 			"in vma: %lu", start, (unsigned long)vma);
 	} else {
 	    DEBUG_PRINT("mlink_vma_pages_range(): no page found at %lu\n", 
@@ -436,6 +451,10 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
 
     struct memory_chain * chain = NULL;
     struct memory_chain_collection * chain_collection = current->mcc;
+
+    if (chain_collection == NULL) {
+	return -1;
+    }
     
     /* acquire chain collection's lock. */
     spin_lock(&chain_collection->lock);
@@ -453,11 +472,13 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
     DEBUG_PRINT("link_addr_rng() chain=%u, range[start=%lu, length=%u",
 		c, start, len);
  
-    /* acquire chain's lock. */
-    spin_lock(&chain->lock);
+    /* 
+     * chain's lock not acquired since previously
+     * linked pages which are forced eviction due
+     * to memory constrains will require aquiring
+     * the lock prior to modifying the linked pages.
+    */
     error = do_mlink_pages(chain, start, len, 0);
-    /* release chain's lock */
-    spin_unlock(&chain->lock);
 
     /* release chain collection's lock. */
     spin_unlock(&chain_collection->lock);
@@ -467,11 +488,15 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
 
 SYSCALL_DEFINE2(anchor, unsigned int, c, unsigned long, addr) {
 
-  	int error = -1; // Error code Invalid chain descriptor.
+    int error = -1; // Error code Invalid chain descriptor.
     unsigned long len = 0;
 
     struct memory_chain * chain = NULL;
     struct memory_chain_collection * chain_collection = current->mcc;
+
+    if (chain_collection == NULL) {
+	return -1;
+    }
     
     /* acquire chain collection's lock. */
     spin_lock(&chain_collection->lock);
@@ -486,12 +511,14 @@ SYSCALL_DEFINE2(anchor, unsigned int, c, unsigned long, addr) {
     len = PAGE_ALIGN(PAGE_SIZE + (addr & ~PAGE_MASK));
     addr &= PAGE_MASK;
 
-    /* acquire chain's lock. */
-    spin_lock(&chain->lock);
+    /* 
+     * chain's lock not acquired since previously
+     * linked pages which are forced eviction due
+     * to memory constrains will require aquiring
+     * the lock prior to modifying the linked pages.
+    */
     error = do_mlink_pages(chain, addr, len, addr);
-    /* release chain's lock */
-    spin_unlock(&chain->lock);
-
+   
     /* release chain collection's lock. */
     spin_unlock(&chain_collection->lock);
 
@@ -510,17 +537,27 @@ SYSCALL_DEFINE2(unlink_addr_rng, unsigned long, start, size_t, length) {
  */
 static void __unlink_chain(memory_chain_t * chain) {
 
-    struct page * head = chain->head;
+    int i = 0;
+    struct page * page = chain->head;
     struct page * next = NULL;
 
-    for (; head != NULL; head = next) {
+    DEBUG_PRINT("unlinking chain: %d; nr_links=%lu", 
+		chain->id, chain->nr_links);
 
-        next = head->next;
-	spin_lock(&head->chain_lock);
-	__reset_page(head, 1);
-	spin_unlock(&head->chain_lock);
+    for (i = 0; page != NULL && i < chain->nr_links; page = next, i++) {
+
+        spin_lock(&page->chain_lock);
+        next = page->next;
+	__reset_page(page, 0);
+	spin_unlock(&page->chain_lock);
     }
 
+    /* reset chain values */
+    chain->head = NULL;
+    chain->tail = NULL;
+    chain->anchor = NULL;
+    chain->delegate = NULL;
+    chain->nr_links = 0;
     atomic_set(&chain->ref_counter, 0);
 }
 
@@ -529,6 +566,10 @@ SYSCALL_DEFINE1(brk_mem_chain, unsigned int, c) {
     int error = -1;
     memory_chain_t * chain = NULL;
     struct memory_chain_collection * chain_collection = current->mcc;
+
+    if (chain_collection == NULL) {
+	return -1;
+    }
     
     /* acquire chain collection's lock. */
     spin_lock(&chain_collection->lock);
@@ -555,6 +596,10 @@ SYSCALL_DEFINE1(rls_mem_chain, unsigned int, c) {
     int error = -1;
     memory_chain_t * chain = NULL;
     struct memory_chain_collection * chain_collection = current->mcc; 
+
+    if (chain_collection == NULL) {
+	return -1;
+    }
     
     /* acquire chain collection's lock. */
     spin_lock(&chain_collection->lock);
@@ -567,23 +612,24 @@ SYSCALL_DEFINE1(rls_mem_chain, unsigned int, c) {
     }
 
     spin_lock(&chain->lock);
-    DEBUG_PRINT("rls_mem_chain(): releasing memory chain %d. #(links)=%d",
-		chain->id, chain->nr_links);
 
     __unlink_chain(chain);
     spin_unlock(&chain->lock);
  
     /* release attributes. */
-    if (chain_collection->chains[c]->attributes)
-        kfree(chain_collection->chains[c]->attributes);
+    if (chain->attributes)
+        kfree(chain->attributes);
 
     /* release chain object and free its slot. */
-    kfree(chain_collection->chains[c]);
+    kfree(chain);
     chain_collection->chains[c] = NULL;
     chain_collection->count--;
 
     /* release chain collection's lock */
     spin_unlock(&chain_collection->lock);
+
+    DEBUG_PRINT("rls_mem_chain(): released memory chain. " \
+		"#(chains)=%d", chain_collection->count);
     
     return 0; // Success
 }
