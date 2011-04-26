@@ -10,3 +10,4 @@ sched.h -> include/linux/
 fork.c -> kernel/
 exit.c -> kernel/
 internal.h -> mm/
+vmscan.c -> mm/

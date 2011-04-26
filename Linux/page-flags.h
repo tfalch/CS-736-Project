@@ -537,6 +537,10 @@ static inline int __PageReferenced(struct page * page) {
 static inline void __ClearPageReferenced(struct page * page) {
     clear_bit(PG_referenced, &page->flags);
 }
+
+static inline int PageMLinked(struct page * page) {
+   return page->chain != NULL;
+}
 /* mcpq-end */
 
 #endif /* !__GENERATING_BOUNDS_H */

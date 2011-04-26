@@ -140,6 +140,8 @@ typedef struct memory_chain {
     atomic_t ref_counter; // nr of linked pages with PG_reference bit set. 
     struct page * delegate; // linked page most recently accessed.
 
+    unsigned long evict_cnt; // # of pages unintentionally evicted
+
     spinlock_t lock;
 } memory_chain_t;
 
