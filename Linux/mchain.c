@@ -17,9 +17,9 @@
 
 /* comment/uncomment to enable/disable DEBUG_PRINT */
 
-#ifdef DEBUG
-#undef DEBUG
-#endif
+//#ifdef DEBUG
+//#undef DEBUG
+//#endif
 
 #ifdef DEBUG
 #define PRINT_FX_NAME printk(KERN_EMERG __FUNCTION__);
