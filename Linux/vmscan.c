@@ -795,11 +795,13 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 		 * mcpq-begin: unlink linked pages  
 		 * this is a bit early to release page from chain
 		 * but this is only place that works so far possibly
-		 **/
+		 */
 		if ((chain = page->chain) != NULL) {
 		    spin_lock(&chain->lock);
 		    spin_lock(&page->chain_lock);
-		    
+
+		    if (page->chain)
+		      page->chain->evict_cnt++;
 		    __unlink_page(page);
 		    
 		    spin_unlock(&page->chain_lock);

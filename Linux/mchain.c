@@ -4,6 +4,7 @@
 #include <linux/linkage.h>
 #include <linux/mm_types.h>
 #include <linux/slab.h>
+#include <linux/swap.h>
 
 #include "internal.h"
 
@@ -293,9 +294,9 @@ static inline struct page * __get_user_page(struct vm_area_struct * vma,
 
 	counter++;
 	if (counter >= MAX_PAGE_RETRIEVAL_ATTEMPTS) {
-	  DEBUG_PRINT("Too many attempts to retrieve page at address: %lu",
-		      addr);
-	  break;
+	    DEBUG_PRINT("Too many attempts to retrieve page at address: %lu",
+			addr);
+	    break;
 	}
 	  
 	cond_resched();
@@ -335,6 +336,7 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
     if (stack_guard_page(vma, start)) 
         start += PAGE_SIZE;
 
+    down_read(&vma->vm_mm->mmap_sem);
     for (addr = start; addr < end; addr += PAGE_SIZE) {
 
         page = __get_user_page(vma, addr);
@@ -359,6 +361,7 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
 			addr);
 	}
     }
+    up_read(&vma->vm_mm->mmap_sem);
 
 #ifdef VERIFY_FLG // validation check. 
     {
