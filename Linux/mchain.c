@@ -645,7 +645,16 @@ SYSCALL_DEFINE1(rls_mem_chain, unsigned int, c) {
 }
 
 int __hate_page(struct page * page){
-	printk(KERN_EMERG "hating page\n");
+	LIST_HEAD(l_inactive);
+
+	DEBUG_PRINT("hating page: %lu\n", (unsigned long)page);
+
+	ClearPageReferenced(page);
+
+	list_del(&page->lru);
+	ClearPageActive(page);
+	list_add(&page->lru, &l_inactive);
+
 	return 0;
 }
 
@@ -693,9 +702,9 @@ int __hate_vma_pages_range(struct vm_area_struct * vma,
 SYSCALL_DEFINE2(hate, unsigned long, start,	size_t, len) {
 
 	int r = -1;
-	unsigned long end;
-	unsigned long s;
-	unsigned long e;
+	unsigned long end = start + len;
+	unsigned long s = start;
+	unsigned long e = end;
 
     struct mm_struct * mm = current->mm;
     struct vm_area_struct * vma = find_vma(mm, s); // retrieve first vma. 
@@ -703,10 +712,6 @@ SYSCALL_DEFINE2(hate, unsigned long, start,	size_t, len) {
 	len = PAGE_ALIGN(len + (start & ~PAGE_MASK));
     start &= PAGE_MASK;
 			
-    end = start + len;
-    s = start; // current vma's start address. 
-    e = end;   // current vma's end address.
-
 
     /* check valid vma returned. */
     if (!vma || vma->vm_start >= end)
