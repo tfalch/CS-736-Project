@@ -286,8 +286,10 @@ void mark_page_accessed(struct page *page)
 {
     if (!PageActive(page) && !PageUnevictable(page) &&
 	PageReferenced(page) && PageLRU(page)) {
-
-        __SetPageReferenced(page);
+      
+        if (page->chain != NULL && !__PageReferenced(page)) {
+	    SetPageReferenced(page);
+	}
 	activate_page(page);
 	ClearPageReferenced(page);
     } else if (!__PageReferenced(page)) {

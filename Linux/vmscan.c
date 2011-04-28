@@ -467,7 +467,6 @@ static pageout_t pageout(struct page *page, struct address_space *mapping,
  */
 static int __remove_mapping(struct address_space *mapping, struct page *page)
 {
-
 	BUG_ON(!PageLocked(page));
 	BUG_ON(mapping != page_mapping(page));
 
@@ -504,7 +503,7 @@ static int __remove_mapping(struct address_space *mapping, struct page *page)
 		page_unfreeze_refs(page, 2);
 		goto cannot_free;
 	}
-
+	
 	if (PageSwapCache(page)) {
 		swp_entry_t swap = { .val = page_private(page) };
 		__delete_from_swap_cache(page);
@@ -790,7 +789,7 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 				goto activate_locked;
 			may_enter_fs = 1;
 		}
-		
+
 		/* 
 		 * mcpq-begin: unlink linked pages  
 		 * this is a bit early to release page from chain
@@ -799,35 +798,37 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 		if ((chain = page->chain) != NULL) {
 		    spin_lock(&chain->lock);
 		    spin_lock(&page->chain_lock);
-
-		    if (page->chain)
-		      page->chain->evict_cnt++;
-		    __unlink_page(page);
+		    
+		    if (page->chain) {
+		       page->chain->evict_cnt++;
+		    }
+		    __unlink_page(page);		       
 		    
 		    spin_unlock(&page->chain_lock);
 		    spin_unlock(&chain->lock);
 		}
 		/* mcpq-end */
-
+		
 		mapping = page_mapping(page);
-
+		
 		/*
 		 * The page is mapped into the page tables of one or more
 		 * processes. Try to unmap it here.
 		 */
 		if (page_mapped(page) && mapping) {
-			switch (try_to_unmap(page, TTU_UNMAP)) {
-			case SWAP_FAIL:
-				goto activate_locked;
-			case SWAP_AGAIN:
-				goto keep_locked;
-			case SWAP_MLOCK:
-				goto cull_mlocked;
-			case SWAP_SUCCESS:
-				; /* try to free the page below */
-			}
+		  
+		    switch (try_to_unmap(page, TTU_UNMAP)) {
+		    case SWAP_FAIL:
+		      goto activate_locked;
+		    case SWAP_AGAIN:
+		      goto keep_locked;
+		    case SWAP_MLOCK:
+		      goto cull_mlocked;
+		    case SWAP_SUCCESS:
+		      ; /* try to free the page below */
+		    }
 		}
-
+		
 		if (PageDirty(page)) {
 			nr_dirty++;
 

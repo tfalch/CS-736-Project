@@ -17,10 +17,11 @@
 #endif 
 
 /* comment/uncomment to enable/disable DEBUG_PRINT */
-
+/*
 #ifdef DEBUG
 #undef DEBUG
 #endif
+*/
 
 #ifdef DEBUG
 #define PRINT_FX_NAME printk(KERN_EMERG __FUNCTION__);
@@ -85,35 +86,28 @@ static void inline __reset_page(struct page * page,int clr_flgs) {
  * @inparam pg page object to be unlinked.
  */
 void __unlink_page(struct page * pg) {
-    memory_chain_t * chain = pg->chain;
 
-    if (chain != NULL) {
-
-      BUG_ON(!page_mapped(chain->head));
-      BUG_ON(!page_mapped(chain->tail));
-      if (pg->next) {
-	BUG_ON(!page_mapped(pg->next));
-      }
-      if (pg->prev) {
-	BUG_ON(!page_mapped(pg->prev));
-      }
+    memory_chain_t * chain = NULL;
       
-
+    if ((chain = pg->chain) != NULL) {
+      
         if (chain->head == pg) { // head of chain
 	    chain->head = pg->next;
 	    if (chain->head != NULL) {
-	        chain->head->prev = NULL;;
+	        chain->head->prev = NULL;
 	    } else {
 	      chain->tail = NULL;
 	    }
 	} else {
+
 	    struct page * previous = pg->prev;
-	  
 	    previous->next = pg->next;
-	    if (pg->next != chain->tail) // not tail of chain
+	  
+	    if (pg != chain->tail) { // not tail of chain
 	        pg->next->prev = previous;
-	    else 
+	    } else {
 	        chain->tail = previous;
+	    }
 	}
 
 	if (chain->anchor == pg) {
@@ -290,7 +284,6 @@ static inline struct page * __get_user_page(struct vm_area_struct * vma,
     int foll_flags = FOLL_TOUCH; // | FOLL_FORCE
     struct page * page= NULL;
 
-    cond_resched();
     while (!(page = follow_page(vma, addr, foll_flags))) {
         unsigned int fault_flags = FAULT_FLAG_ALLOW_RETRY;
 	int ret = handle_mm_fault(vma->vm_mm, vma, addr,
@@ -309,9 +302,7 @@ static inline struct page * __get_user_page(struct vm_area_struct * vma,
 	    DEBUG_PRINT("Too many attempts to retrieve page at address: %lu",
 			addr);
 	    break;
-	}
-	  
-	cond_resched();
+	}	  
     }
 
     return page;
@@ -358,6 +349,7 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
 	    spin_lock(&page->chain_lock);
 	  
 	    __link_page(chain, page);
+	    mark_page_accessed(page);
 	    
 	    if (unlikely(start == anchor)) {
 	        sys_mlock(addr, PAGE_SIZE);
@@ -445,21 +437,21 @@ static long do_mlink_pages(struct memory_chain * chain,
 
         /* determine if current address lies outside range 
 	   of current vma; if so move to next vma. */
-		if (s >= vma->vm_end) 
-		    vma = vma->vm_next;
+        if (s >= vma->vm_end) 
+	    vma = vma->vm_next;
+	
+	if (!vma || vma->vm_start >= end) {
+	    return -1;
+	}
 
-		if (!vma || vma->vm_start >= end){
-		    return -1;
-		}
+	/* determine current vma's end address. */
+	e = end < vma->vm_end ? end : vma->vm_end;
+	
+	/* determine current vma's start address. */
+	if (s < vma->vm_start)
+	    s = vma->vm_start;
 
-		/* determine current vma's end address. */
-		e = end < vma->vm_end ? end : vma->vm_end;
-      
-		/* determine current vma's start address. */
-        if (s < vma->vm_start)
-	    	s = vma->vm_start;
-
-		r = __mlink_vma_pages_range(chain, vma, s, e, anchor);
+	r = __mlink_vma_pages_range(chain, vma, s, e, anchor);
     }
 
     return r;
