@@ -18,9 +18,9 @@
 
 /* comment/uncomment to enable/disable DEBUG_PRINT */
 
-//#ifdef DEBUG
-//#undef DEBUG
-//#endif
+#ifdef DEBUG
+#undef DEBUG
+#endif
 
 #ifdef DEBUG
 #define PRINT_FX_NAME printk(KERN_EMERG __FUNCTION__);
@@ -57,6 +57,8 @@ static memory_chain_t * __new_mem_chain(unsigned int id) {
     chain->delegate = NULL;
     chain->nr_links = 0;
     atomic_set(&chain->ref_counter, 0);
+
+    chain->evict_cnt = 0;
    
     spin_lock_init(&chain->lock);  
 
@@ -86,6 +88,16 @@ void __unlink_page(struct page * pg) {
     memory_chain_t * chain = pg->chain;
 
     if (chain != NULL) {
+
+      BUG_ON(!page_mapped(chain->head));
+      BUG_ON(!page_mapped(chain->tail));
+      if (pg->next) {
+	BUG_ON(!page_mapped(pg->next));
+      }
+      if (pg->prev) {
+	BUG_ON(!page_mapped(pg->prev));
+      }
+      
 
         if (chain->head == pg) { // head of chain
 	    chain->head = pg->next;
@@ -275,7 +287,7 @@ static inline struct page * __get_user_page(struct vm_area_struct * vma,
 					    unsigned long addr) {
   
     int counter = 0;
-    int foll_flags = FOLL_TOUCH | FOLL_FORCE;
+    int foll_flags = FOLL_TOUCH; // | FOLL_FORCE
     struct page * page= NULL;
 
     cond_resched();
@@ -625,7 +637,10 @@ SYSCALL_DEFINE1(rls_mem_chain, unsigned int, c) {
     }
 
     spin_lock(&chain->lock);
-
+    DEBUG_PRINT("chain stats: eviction-count=%lu, nr-links=%lu, " \
+		"ref_counter=%d", chain->evict_cnt,
+		chain->nr_links, atomic_read(&chain->ref_counter));
+	  
     __unlink_chain(chain);
     spin_unlock(&chain->lock);
  

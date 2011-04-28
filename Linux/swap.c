@@ -284,13 +284,15 @@ void activate_page(struct page *page)
  */
 void mark_page_accessed(struct page *page)
 {
-	if (!PageActive(page) && !PageUnevictable(page) &&
-			PageReferenced(page) && PageLRU(page)) {
-		activate_page(page);
-		ClearPageReferenced(page);
-	} else if (!__PageReferenced(page)) {
-		SetPageReferenced(page);
-	}
+    if (!PageActive(page) && !PageUnevictable(page) &&
+	PageReferenced(page) && PageLRU(page)) {
+
+        __SetPageReferenced(page);
+	activate_page(page);
+	ClearPageReferenced(page);
+    } else if (!__PageReferenced(page)) {
+        SetPageReferenced(page);
+    }
 }
 
 EXPORT_SYMBOL(mark_page_accessed);

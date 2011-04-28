@@ -530,6 +530,10 @@ static inline int TestClearPageReferenced(struct page * page) {
 }
 
 /* added to return true page referenced value. */
+static inline void __SetPageReferenced(struct page * page) {
+    set_bit(PG_referenced, &page->flags);
+}
+
 static inline int __PageReferenced(struct page * page) {
     return test_bit(PG_referenced, &page->flags);
 }
