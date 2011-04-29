@@ -483,15 +483,20 @@ static inline int page_has_private(struct page *page)
 }
 
 /* mcpq-begin: overwritten default inline functions */
+
+static inline int PageLinked(struct page * page) {
+   return page->chain != NULL;
+}
+
 static inline int PageReferenced(struct page * page) {
 
     int r = test_bit(PG_referenced, &page->flags);
 
     if (!r) {
-        spin_lock(&page->chain_lock);
-	if (page->chain != NULL)
+        spin_lock(&page->link_lock);
+	if (PageLinked(page))
 	    r = atomic_read(&page->chain->ref_counter);
-	spin_unlock(&page->chain_lock);
+	spin_unlock(&page->link_lock);
     }
   
     return r;
@@ -500,31 +505,31 @@ static inline int PageReferenced(struct page * page) {
 static inline void SetPageReferenced(struct page * p) {
     set_bit(PG_referenced, &p->flags);
 
-    spin_lock(&p->chain_lock);
-    if (p->chain != NULL)
+    spin_lock(&p->link_lock);
+    if (PageLinked(p))
         atomic_inc(&p->chain->ref_counter);
-    spin_unlock(&p->chain_lock);
+    spin_unlock(&p->link_lock);
 }
 
 static inline void ClearPageReferenced(struct page * p) {
     int is_set = test_and_clear_bit(PG_referenced, &p->flags);
     
-    spin_lock(&p->chain_lock);
-    if (is_set && p->chain != NULL) 
+    spin_lock(&p->link_lock);
+    if (is_set && PageLinked(p))
         atomic_dec(&p->chain->ref_counter);
-    spin_unlock(&p->chain_lock);
+    spin_unlock(&p->link_lock);
 }
 
 static inline int TestClearPageReferenced(struct page * page) {
     int v = test_and_clear_bit(PG_referenced, &page->flags);
 
-    spin_lock(&page->chain_lock);
-    if (page->chain != NULL) {
+    spin_lock(&page->link_lock);
+    if (PageLinked(page)) {
         if (v)
 	    atomic_dec(&page->chain->ref_counter);
 	v |= atomic_read(&page->chain->ref_counter);
     } 
-    spin_unlock(&page->chain_lock);
+    spin_unlock(&page->link_lock);
     
     return v;
 }
@@ -540,10 +545,6 @@ static inline int __PageReferenced(struct page * page) {
 
 static inline void __ClearPageReferenced(struct page * page) {
     clear_bit(PG_referenced, &page->flags);
-}
-
-static inline int PageMLinked(struct page * page) {
-   return page->chain != NULL;
 }
 /* mcpq-end */
 

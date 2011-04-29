@@ -103,13 +103,12 @@ struct page {
   void *shadow;
 #endif
   
-  spinlock_t chain_lock; /* protects (pairwise) concurrent access between
+  struct memory_chain * chain; // memory chain associated with.
+  spinlock_t link_lock; /* protects (pairwise) concurrent access between
 			    1. link(chain, page) && ##PageReferenced(page) 
 			    2. free(page) && exit(task).
 			 */
-  struct memory_chain * chain; // memory chain associated with.
-  struct page * next;
-  struct page * prev;
+  struct list_head link;
 };
 
 typedef enum eviction_policy {
@@ -133,13 +132,10 @@ typedef struct memory_chain {
     memory_chain_attr_t * attributes; // chain's attributes.
 
     unsigned long nr_links; // nr of linked pages.
-    struct page * head;   // head of linked pages.
-    struct page * tail;   // tail of linked pages.
-    struct page * anchor; // anchored page. last page to be evicted from chain.
+    struct list_head links; // list of linked pages.
+    struct page * anchor;   // anchored (pseudo-locked) page
 
-    struct list_head list;  // migrate linked pages to kernel list.
-
-    atomic_t ref_counter; // nr of linked pages with PG_reference bit set. 
+    atomic_t ref_counter;   // nr of linked pages with PG_reference bit set. 
     struct page * delegate; // linked page most recently accessed.
 
     unsigned long evict_cnt; // # of pages unintentionally evicted

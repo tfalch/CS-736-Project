@@ -908,11 +908,10 @@ static inline void unlink_chain_fast(struct memory_chain * c) {
     struct page * p = NULL;
     
     spin_lock(&c->lock);
-    
-    for (p =c->head; p != NULL; p = p->next) {
-        spin_lock(&p->chain_lock);
-	p->chain = NULL; 
-	spin_unlock(&p->chain_lock);
+    list_for_each_entry(p, &c->links, link) {
+        spin_lock(&p->link_lock);
+	p->chain = NULL;
+	spin_unlock(&p->link_lock);
     }
     spin_unlock(&c->lock);
 }

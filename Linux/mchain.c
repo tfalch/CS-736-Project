@@ -5,6 +5,8 @@
 #include <linux/mm_types.h>
 #include <linux/slab.h>
 #include <linux/swap.h>
+#include <linux/mmzone.h>
+#include <linux/mm_inline.h>
 
 #include "internal.h"
 
@@ -17,11 +19,9 @@
 #endif 
 
 /* comment/uncomment to enable/disable DEBUG_PRINT */
-/*
 #ifdef DEBUG
 #undef DEBUG
 #endif
-*/
 
 #ifdef DEBUG
 #define PRINT_FX_NAME printk(KERN_EMERG __FUNCTION__);
@@ -52,10 +52,9 @@ static memory_chain_t * __new_mem_chain(unsigned int id) {
 
     chain->id = id;
     chain->attributes = NULL;
-    chain->head = NULL;
-    chain->tail = NULL;
     chain->anchor = NULL;
     chain->delegate = NULL;
+    INIT_LIST_HEAD(&chain->links);
     chain->nr_links = 0;
     atomic_set(&chain->ref_counter, 0);
 
@@ -70,14 +69,26 @@ static void inline __reset_page(struct page * page,int clr_flgs) {
   
     struct memory_chain * chain = page->chain;
 
-    page->next = NULL;
-    page->prev = NULL;
     page->chain = NULL;
+    INIT_LIST_HEAD(&page->link);
       
     if (clr_flgs && __PageReferenced(page)) {
         __ClearPageReferenced(page);
 	atomic_dec(&chain->ref_counter);
     }
+
+    /*
+    if (PageLRU(page)) {
+        enum lru_list lru = 0;
+	enum lru_list base = 0;
+        struct zone * zone = page_zone(page);
+	
+	spin_lock_irq(&zone->lru_lock);
+	base = page_lru_base_type(page); // determine base lru FILE|ANON 
+	lru = 
+	spin_unlock_irq(&zone->lru_lock);
+    }
+    */
 }
 
 /**
@@ -88,27 +99,10 @@ static void inline __reset_page(struct page * page,int clr_flgs) {
 void __unlink_page(struct page * pg) {
 
     memory_chain_t * chain = NULL;
-      
+       
     if ((chain = pg->chain) != NULL) {
       
-        if (chain->head == pg) { // head of chain
-	    chain->head = pg->next;
-	    if (chain->head != NULL) {
-	        chain->head->prev = NULL;
-	    } else {
-	      chain->tail = NULL;
-	    }
-	} else {
-
-	    struct page * previous = pg->prev;
-	    previous->next = pg->next;
-	  
-	    if (pg != chain->tail) { // not tail of chain
-	        pg->next->prev = previous;
-	    } else {
-	        chain->tail = previous;
-	    }
-	}
+        list_del_init(&pg->link);
 
 	if (chain->anchor == pg) {
 	    sys_munlock(0, PAGE_SIZE); // TODO: 
@@ -126,10 +120,9 @@ void __unlink_page(struct page * pg) {
 
 	__reset_page(pg, 0);
 
-	DEBUG_PRINT("unlinked %p from chain %u, #(links)=%lu, ref_counter=%d" \
-		    ", head=%p], tail=%p", pg, chain->id, chain->nr_links, 
-		    atomic_read(&chain->ref_counter), chain->head,
-		    chain->tail);
+	DEBUG_PRINT("unlinked %p from chain %u, #(links)=%lu, ref_counter=%d",
+		    pg, chain->id, chain->nr_links, 
+		    atomic_read(&chain->ref_counter));
     }
 }
 
@@ -148,33 +141,23 @@ static struct page * __link_page(memory_chain_t * chain, struct page * pg) {
     
     // check if the page is in another chain, if so, unlink page.
     if (unlikely(pg->chain != NULL)) {
-        spin_lock(&pg->chain->lock);
+        spin_lock(&pg->link_lock);
 	__unlink_page(pg);
-	spin_unlock(&pg->chain->lock);
+	spin_unlock(&pg->link_lock);
     }
  
     // if the chain is full, choose a victim for evicition.
     if (unlikely(MEMORY_CHAIN_IS_FULL(chain))) {
         victim = __evict_page(chain);
 
-	spin_lock(&victim->chain_lock);
+	spin_lock(&victim->link_lock);
 	__unlink_page(victim);
-	spin_unlock(&victim->chain_lock);
+	spin_unlock(&victim->link_lock);
     }
 
-    // initialize page
+    INIT_LIST_HEAD(&pg->link);
     pg->chain = chain;
-    pg->next = pg->prev = NULL;
-
-    // determine if first page. 
-    if (unlikely(chain->head == NULL)) {
-        chain->head = pg;
-	chain->tail = pg;
-    } else {
-        chain->head->prev = pg;
-	pg->next = chain->head;
-	chain->head = pg;
-    }
+    list_add(&pg->link, &chain->links);
     
     chain->nr_links++;
     if (__PageReferenced(pg)) {
@@ -224,7 +207,7 @@ static inline void __init_mcc(struct task_struct * tsk) {
     mcc->count = 0;
     mcc->capacity = MAX_NUM_CHAINS;;
     mcc->chains = kmalloc(sizeof(memory_chain_t *) * 
-			  MAX_NUM_CHAINS, GFP_KERNEL);;
+			  MAX_NUM_CHAINS, GFP_KERNEL);
     /* zero out chain array */
     memset(mcc->chains, 0, 
 	   sizeof(memory_chain_t *) * MAX_NUM_CHAINS); 
@@ -327,6 +310,8 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
 {
     unsigned long addr;
     struct page * page = NULL;
+    enum lru_list lru = 0; /* current lru */
+    int is_active = 0;
 
     DEBUG_PRINT("mlink_vma_pages_range(): vma-range[s=%lu, e=%lu]; " \
 		"range[start=%lu, end=%lu]", vma->vm_start, vma->vm_end, 
@@ -345,18 +330,43 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
         page = __get_user_page(vma, addr);
 	
 	if (page != NULL) {
-	  
-	    spin_lock(&page->chain_lock);
-	  
-	    __link_page(chain, page);
-	    mark_page_accessed(page);
+	  	  
+	    struct zone * z = page_zone(page);
+
+	    spin_lock_irq(&z->lru_lock);
+
+	    lru = page_lru_base_type(page); // determine current lru list. 
+	    is_active = PageActive(page);
+
 	    
+	    /*
+	    if (PageLRU(page)) 
+	        / * del from current lru list * /
+	        del_page_from_lru_list(z, page, lru + 
+				       (is_active ? LRU_ACTIVE : LRU_BASE)); 
+	    else 
+	        INIT_LIST_HEAD(&page->lru);
+	    */
+
+	    spin_lock(&page->link_lock);
+	    /* add page to chains link */
+	    __link_page(chain, page);
+
+	    /* simulate anchoring page. */
 	    if (unlikely(start == anchor)) {
 	        sys_mlock(addr, PAGE_SIZE);
 	        chain->anchor = page;
 	    }
+	    spin_unlock(&page->link_lock);
+	    
+	    /* move page from linked lru list * /
+	    SetPageLRU(page);
+	    add_page_to_lru_list(z, page, lru + LRU_LINKED +
+				 (is_active ? LRU_ACTIVE : LRU_BASE)); 
+	    */
+	    spin_unlock_irq(&z->lru_lock);
 
-	    spin_unlock(&page->chain_lock);
+	    mark_page_accessed(page);
 	    
 	    DEBUG_PRINT("mlink_vma_pages_range(): linked(address): %lu " \
 			"in vma: %lu", start, (unsigned long)vma);
@@ -366,39 +376,6 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
 	}
     }
     up_read(&vma->vm_mm->mmap_sem);
-
-#ifdef VERIFY_FLG // validation check. 
-    {
-        int nonblocking = 0;
-        int nr_pages = (end - start) / PAGE_SIZE;
-	struct page ** pages = kmalloc(sizeof(struct page *) * nr_pages, 
-				       GFP_KERNEL);
-	int n = 0;
-	int i = 0;
-	
-	down_read(&vma->vm_mm->mmap_sem);
-	n = __get_user_pages(current, vma->vm_mm, start, nr_pages,
-			     FOLL_TOUCH, pages, NULL, &nonblocking);
-	up_read(&vma->vm_mm->mmap_sem);
-	
-	DEBUG_PRINT("nr-links=%lu, nr-pages=%d, n=%d", chain->nr_links, 
-		    nr_pages, n);
-
-	for (i = 0; i < n; i++) {
-	    if (pages[i] != NULL) {
-	        if (pages[i]->chain != chain) {
-		  printk(KERN_EMERG "pages[%d] at %p has invalid container. " \
-			 "expected %p, but found %p", i, pages[i], chain, 
-			 pages[i]->chain);
-		}
-		
-		BUG_ON(pages[i]->chain != chain);
-	    }
-	}
-
-	kfree(pages);
-    }
-#endif
     
     return 0;
 }
@@ -551,18 +528,17 @@ SYSCALL_DEFINE3(unlink_addr_rng, unsigned int, c, unsigned long, start, size_t, 
 static void __unlink_chain(memory_chain_t * chain) {
 
     int i = 0;
-    struct page * page = chain->head;
+    struct page * page = NULL; //chain->head;
     struct page * next = NULL;
 
     DEBUG_PRINT("unlinking chain: %d; nr_links=%lu", 
 		chain->id, chain->nr_links);
 
-    for (i = 0; page != NULL && i < chain->nr_links; page = next, i++) {
-
-        spin_lock(&page->chain_lock);
-        next = page->next;
+    list_for_each_entry_safe(page, next, &chain->links, link) {
+        spin_lock(&page->link_lock);
+	list_del(&page->link);
 	__reset_page(page, 1);
-	spin_unlock(&page->chain_lock);
+	spin_unlock(&page->link_lock);
     }
 
     if (chain->anchor != NULL) {
@@ -570,8 +546,8 @@ static void __unlink_chain(memory_chain_t * chain) {
     }
 
     /* reset chain values */
-    chain->head = NULL;
-    chain->tail = NULL;
+    INIT_LIST_HEAD(&chain->links);
+
     chain->anchor = NULL;
     chain->delegate = NULL;
     chain->nr_links = 0;
@@ -629,7 +605,7 @@ SYSCALL_DEFINE1(rls_mem_chain, unsigned int, c) {
     }
 
     spin_lock(&chain->lock);
-    DEBUG_PRINT("chain stats: eviction-count=%lu, nr-links=%lu, " \
+    printk(KERN_EMERG "chain stats: eviction-count=%lu, nr-links=%lu, " \
 		"ref_counter=%d", chain->evict_cnt,
 		chain->nr_links, atomic_read(&chain->ref_counter));
 	  
