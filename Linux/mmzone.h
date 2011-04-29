@@ -161,7 +161,7 @@ static inline int is_file_lru(enum lru_list l)
 
 static inline int is_active_lru(enum lru_list l)
 {
-  return l % 2 && l <= LRU_ACTIVE_LINKED_FILE;
+  return ((l % 2) == 1) && l <= LRU_ACTIVE_LINKED_FILE;
 }
 
 static inline int is_unevictable_lru(enum lru_list l)

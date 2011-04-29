@@ -797,14 +797,14 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 		 */
 		if ((chain = page->chain) != NULL) {
 		    spin_lock(&chain->lock);
-		    spin_lock(&page->chain_lock);
+		    spin_lock(&page->link_lock);
 		    
 		    if (page->chain) {
 		       page->chain->evict_cnt++;
 		    }
 		    __unlink_page(page);		       
 		    
-		    spin_unlock(&page->chain_lock);
+		    spin_unlock(&page->link_lock);
 		    spin_unlock(&chain->lock);
 		}
 		/* mcpq-end */
@@ -1770,9 +1770,13 @@ static void get_scan_count(struct zone *zone, struct scan_control *sc,
 	}
 
 	anon  = zone_nr_lru_pages(zone, sc, LRU_ACTIVE_ANON) +
-		zone_nr_lru_pages(zone, sc, LRU_INACTIVE_ANON);
+		zone_nr_lru_pages(zone, sc, LRU_INACTIVE_ANON) +
+	        zone_nr_lru_pages(zone, sc, LRU_ACTIVE_LINKED_ANON) +
+	        zone_nr_lru_pages(zone, sc, LRU_INACTIVE_LINKED_ANON);
 	file  = zone_nr_lru_pages(zone, sc, LRU_ACTIVE_FILE) +
-		zone_nr_lru_pages(zone, sc, LRU_INACTIVE_FILE);
+		zone_nr_lru_pages(zone, sc, LRU_INACTIVE_FILE) +
+	        zone_nr_lru_pages(zone, sc, LRU_ACTIVE_LINKED_FILE) +
+	        zone_nr_lru_pages(zone, sc, LRU_INACTIVE_LINKED_FILE);
 
 	if (scanning_global_lru(sc)) {
 		free  = zone_page_state(zone, NR_FREE_PAGES);

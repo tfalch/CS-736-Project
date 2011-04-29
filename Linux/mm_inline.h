@@ -54,7 +54,7 @@ del_page_from_lru_list(struct zone *zone, struct page *page, enum lru_list l)
  */
 static inline enum lru_list page_lru_base_type(struct page *page)
 {
-    int l = PageMLinked(page) ? LRU_LINKED : LRU_BASE;
+    int l = PageLinked(page) ? LRU_LINKED : LRU_BASE;
     if (page_is_file_cache(page))
         return LRU_INACTIVE_FILE + l;
     return LRU_INACTIVE_ANON + l;
