@@ -11,4 +11,7 @@ fork.c -> kernel/
 exit.c -> kernel/
 internal.h -> mm/
 vmscan.c -> mm/
-sap.c -> mm/
+swap.c -> mm/
+vmstat.c -> mm/
+mmzone.h -> include/linux/
+mm_inline.h -> include/linux/
