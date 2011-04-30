@@ -34,12 +34,17 @@
 #endif
 
 #define MAX_PAGE_RETRIEVAL_ATTEMPTS 2
-#define MAX_NUM_CHAINS 5
+#define MAX_NUM_CHAINS 255
 
 #define MEMORY_CHAIN_IS_FULL(chain) \
-  chain->attributes != NULL && chain->attributes->is_bounded ? \
+  chain->attributes != NULL && chain->attributes->is_bounded ?	\
     chain->nr_links >= chain->attributes->max_links : 0
 
+/**
+ * @name __init_mcc
+ * @description initializes task memory chain collection
+ * @inparam tsk task structure
+ */
 static inline void __init_mcc(struct task_struct * tsk) {
 
     struct memory_chain_collection * mcc =
@@ -87,7 +92,6 @@ static void inline __reset_page(struct page * page,int clr_flgs) {
     struct memory_chain * chain = page->chain;
 
     page->chain = NULL;
-    //INIT_LIST_HEAD(&page->link);
       
     if (clr_flgs && __PageReferenced(page)) {
         __ClearPageReferenced(page);
@@ -237,10 +241,8 @@ SYSCALL_DEFINE0(new_mem_chain) {
     }
 
     DEBUG_PRINT("new_mem_chain(): tsk[chains=%p, nr=%d, max=%d, slot=%d]",
-		chain_collection->chains, 
-		chain_collection->count,
-		chain_collection->capacity,
-		slot);
+		chain_collection->chains, chain_collection->count,
+		chain_collection->capacity, slot);
 
     spin_unlock(&chain_collection->lock);
     
@@ -370,8 +372,8 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
     }
     up_read(&vma->vm_mm->mmap_sem);
     
-    printk(KERN_EMERG "linked %d of %d pages", nr_linked, 
-	   ((end - start) / PAGE_SIZE));
+    DEBUG_PRINT("linked %d of %d pages", nr_linked, 
+		((end - start) / PAGE_SIZE));
 		
     return nr_linked;
 }
@@ -511,7 +513,9 @@ SYSCALL_DEFINE2(anchor, unsigned int, c, unsigned long, addr) {
     return 0;
 }
 
-SYSCALL_DEFINE3(unlink_addr_rng, unsigned int, c, unsigned long, start, size_t, length) {
+SYSCALL_DEFINE3(unlink_addr_rng, unsigned int, c, unsigned long, start, 
+		size_t, length) {
+
     return 0;
 }
 
@@ -526,8 +530,8 @@ static void __unlink_chain(memory_chain_t * chain) {
     struct page * page = NULL;
     struct page * next = NULL;
 
-    DEBUG_PRINT("unlinking chain: %d; nr_links=%lu", 
-		chain->id, chain->nr_links);
+    DEBUG_PRINT("unlinking chain: %d; nr_links=%lu", chain->id, 
+		chain->nr_links);
 
     list_for_each_entry_safe(page, next, &chain->links, link) {
         spin_lock(&page->link_lock);

@@ -29,23 +29,53 @@
 #define DEBUG_PRINT(fmt, ...)
 #endif
 
-int __hate_page(struct page * page) {
-    LIST_HEAD(l_inactive);
+typedef enum hate_lvl {
+  DISLIKE,  // moves page to inactive list to be freed eventually
+  HATE      // frees page instantly. 
+} hate_intensity;;
+  
+static inline int __hate_page(struct page * page, enum hate_lvl hate) {
 
     DEBUG_PRINT("hating page: %lu\n", (unsigned long)page);
-  
+    
+    if (hate == DISLIKE) {
+        if (PageLRU(page)) {
+	    unsigned long flags;
+	    enum lru_list lru = LRU_BASE;
+	    struct zone * zone = page_zone(page);
+	    
+	    spin_lock_irqsave(&zone->lru_lock, flags);
+
+	    lru = page_lru_base_type(page);
+	    del_page_from_lru(zone, page);
+	    
+	    __ClearPageActive(page);
+	    __ClearPageReferenced(page);
+	    
+	    add_page_to_lru_list(zone, page, lru);
+
+	    spin_unlock_irqrestore(&zone->lru_lock, flags);
+	}
+    } else {
+        put_page(page); 
+    }
+	     
+    
+    /*
     ClearPageReferenced(page);
     
     list_del(&page->lru);
     ClearPageActive(page);
     list_add(&page->lru, &l_inactive);
-    
+    */
     return 0;
 }
 
 int __hate_vma_pages_range(struct vm_area_struct * vma, 
-			   unsigned long start, unsigned long end) {
+			   unsigned long start, unsigned long end,
+			   enum hate_lvl intensity) {
   
+    LIST_HEAD(l_inactive);
     unsigned long addr;
     struct page * page = NULL;
     
@@ -66,10 +96,10 @@ int __hate_vma_pages_range(struct vm_area_struct * vma,
       
 	if (page != NULL) {
 	  
-	  if(page->chain != NULL){
+	  if (PageLinked(page)) {
 	      printk(KERN_EMERG "Cannot hate page in chain\n");
 	  } else {
-	      __hate_page(page);
+	    __hate_page(page, intensity);
 	  }
       
       
@@ -122,7 +152,8 @@ SYSCALL_DEFINE2(hate, unsigned long, start, size_t, len) {
 	    s = vma->vm_start;
 	}
 	
-	r = __hate_vma_pages_range(vma, s, e);
+	// TODO: allow user to select hate level. 
+	r = __hate_vma_pages_range(vma, s, e, DISLIKE); 
     }
     
     return r;
