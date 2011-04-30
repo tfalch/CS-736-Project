@@ -503,7 +503,7 @@ static int __remove_mapping(struct address_space *mapping, struct page *page)
 		page_unfreeze_refs(page, 2);
 		goto cannot_free;
 	}
-	
+
 	if (PageSwapCache(page)) {
 		swp_entry_t swap = { .val = page_private(page) };
 		__delete_from_swap_cache(page);
@@ -682,21 +682,20 @@ static enum page_references page_check_references(struct page *page,
 
 static noinline_for_stack void free_page_list(struct list_head *free_pages)
 {
-    struct pagevec freed_pvec;
-    struct page *page, *tmp;
-    
-    pagevec_init(&freed_pvec, 1);
+	struct pagevec freed_pvec;
+	struct page *page, *tmp;
 
-    list_for_each_entry_safe(page, tmp, free_pages, lru) {
+	pagevec_init(&freed_pvec, 1);
 
-        list_del(&page->lru);
-	if (!pagevec_add(&freed_pvec, page)) {
-	    __pagevec_free(&freed_pvec);
-	    pagevec_reinit(&freed_pvec);
+	list_for_each_entry_safe(page, tmp, free_pages, lru) {
+		list_del(&page->lru);
+		if (!pagevec_add(&freed_pvec, page)) {
+			__pagevec_free(&freed_pvec);
+			pagevec_reinit(&freed_pvec);
+		}
 	}
-    }
-    
-    pagevec_free(&freed_pvec);
+
+	pagevec_free(&freed_pvec);
 }
 
 /*
@@ -790,45 +789,41 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 			may_enter_fs = 1;
 		}
 
-		/* 
-		 * mcpq-begin: unlink linked pages  
-		 * this is a bit early to release page from chain
-		 * but this is only place that works so far possibly
-		 */
+		/* mcpq-being: unlinked linked pages. */
 		if ((chain = page->chain) != NULL) {
 		    spin_lock(&chain->lock);
 		    spin_lock(&page->link_lock);
-		    
+
 		    if (page->chain) {
-		       page->chain->evict_cnt++;
+		        page->chain->evict_cnt++;
 		    }
-		    __unlink_page(page);		       
-		    
+
+		    __unlink_page(page);
+
 		    spin_unlock(&page->link_lock);
 		    spin_unlock(&chain->lock);
 		}
 		/* mcpq-end */
-		
+
 		mapping = page_mapping(page);
-		
+
 		/*
 		 * The page is mapped into the page tables of one or more
 		 * processes. Try to unmap it here.
 		 */
 		if (page_mapped(page) && mapping) {
-		  
-		    switch (try_to_unmap(page, TTU_UNMAP)) {
-		    case SWAP_FAIL:
-		      goto activate_locked;
-		    case SWAP_AGAIN:
-		      goto keep_locked;
-		    case SWAP_MLOCK:
-		      goto cull_mlocked;
-		    case SWAP_SUCCESS:
-		      ; /* try to free the page below */
-		    }
+			switch (try_to_unmap(page, TTU_UNMAP)) {
+			case SWAP_FAIL:
+				goto activate_locked;
+			case SWAP_AGAIN:
+				goto keep_locked;
+			case SWAP_MLOCK:
+				goto cull_mlocked;
+			case SWAP_SUCCESS:
+				; /* try to free the page below */
+			}
 		}
-		
+
 		if (PageDirty(page)) {
 			nr_dirty++;
 
@@ -1770,13 +1765,9 @@ static void get_scan_count(struct zone *zone, struct scan_control *sc,
 	}
 
 	anon  = zone_nr_lru_pages(zone, sc, LRU_ACTIVE_ANON) +
-		zone_nr_lru_pages(zone, sc, LRU_INACTIVE_ANON) +
-	        zone_nr_lru_pages(zone, sc, LRU_ACTIVE_LINKED_ANON) +
-	        zone_nr_lru_pages(zone, sc, LRU_INACTIVE_LINKED_ANON);
+		zone_nr_lru_pages(zone, sc, LRU_INACTIVE_ANON);
 	file  = zone_nr_lru_pages(zone, sc, LRU_ACTIVE_FILE) +
-		zone_nr_lru_pages(zone, sc, LRU_INACTIVE_FILE) +
-	        zone_nr_lru_pages(zone, sc, LRU_ACTIVE_LINKED_FILE) +
-	        zone_nr_lru_pages(zone, sc, LRU_INACTIVE_LINKED_FILE);
+		zone_nr_lru_pages(zone, sc, LRU_INACTIVE_FILE);
 
 	if (scanning_global_lru(sc)) {
 		free  = zone_page_state(zone, NR_FREE_PAGES);

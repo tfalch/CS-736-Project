@@ -903,17 +903,19 @@ static inline void check_stack_usage(void) {}
 /*
  * set any residing pages to have null container. 
  */
-static inline void unlink_chain_fast(struct memory_chain * c) {
+static inline void unlink_chain_fast(struct memory_chain * chain) {
 
-    struct page * p = NULL;
+    struct page * page = NULL;
+    struct page * next = NULL;
     
-    spin_lock(&c->lock);
-    list_for_each_entry(p, &c->links, link) {
-        spin_lock(&p->link_lock);
-	p->chain = NULL;
-	spin_unlock(&p->link_lock);
+    spin_lock(&chain->lock);
+    list_for_each_entry_safe(page, next, &chain->links, link) {
+        spin_lock(&page->link_lock);
+	page->chain = NULL;
+	list_del_init(&page->link);
+	spin_unlock(&page->link_lock);
     }
-    spin_unlock(&c->lock);
+    spin_unlock(&chain->lock);
 }
 
 NORET_TYPE void do_exit(long code)

@@ -491,7 +491,7 @@ static inline int PageLinked(struct page * page) {
 static inline int PageReferenced(struct page * page) {
 
     int r = test_bit(PG_referenced, &page->flags);
-
+    
     if (!r) {
         spin_lock(&page->link_lock);
 	if (PageLinked(page))

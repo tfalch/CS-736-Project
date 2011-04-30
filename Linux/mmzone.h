@@ -136,23 +136,21 @@ enum zone_stat_item {
 #define LRU_FILE 4
 
 enum lru_list {
-  LRU_INACTIVE_ANON = LRU_BASE,                                /* 0 */
-  LRU_ACTIVE_ANON = LRU_BASE + LRU_ACTIVE,                     /* 1 */
-  LRU_INACTIVE_LINKED_ANON = LRU_BASE + LRU_LINKED,            /* 2 */
-  LRU_ACTIVE_LINKED_ANON = LRU_BASE + LRU_ACTIVE + LRU_LINKED, /* 3 */
-
-  LRU_INACTIVE_FILE = LRU_BASE + LRU_FILE,                     /* 4 */
-  LRU_ACTIVE_FILE = LRU_BASE + LRU_FILE + LRU_ACTIVE,          /* 5 */
-  LRU_INACTIVE_LINKED_FILE = LRU_LINKED + LRU_INACTIVE_FILE,   /* 6 */
-  LRU_ACTIVE_LINKED_FILE = LRU_ACTIVE_FILE + LRU_LINKED,       /* 7 */
-
+  LRU_INACTIVE_ANON = LRU_BASE,                                         /* 0 */
+  LRU_ACTIVE_ANON = LRU_BASE + LRU_ACTIVE,                              /* 1 */
+  LRU_INACTIVE_LINKED_ANON = LRU_BASE + LRU_LINKED,                     /* 2 */
+  LRU_ACTIVE_LINKED_ANON = LRU_BASE + LRU_ACTIVE + LRU_LINKED,          /* 3 */
+  LRU_INACTIVE_FILE = LRU_BASE + LRU_FILE,                              /* 4 */
+  LRU_ACTIVE_FILE = LRU_BASE + LRU_FILE + LRU_ACTIVE,                   /* 5 */
+  LRU_INACTIVE_LINKED_FILE = LRU_BASE + LRU_FILE + LRU_LINKED,          /* 6 */
+  LRU_ACTIVE_LINKED_FILE = LRU_BASE + LRU_FILE + LRU_ACTIVE +LRU_LINKED,/* 7 */
   LRU_UNEVICTABLE,
   NR_LRU_LISTS
 };
 
 #define for_each_lru(l) for (l = 0; l < NR_LRU_LISTS; l++)
 
-#define for_each_evictable_lru(l) for (l = 0; l < LRU_UNEVICTABLE; l++)
+#define for_each_evictable_lru(l) for (l = 0; l <= LRU_ACTIVE_LINKED_FILE; l++)
 
 static inline int is_file_lru(enum lru_list l)
 {
@@ -161,7 +159,8 @@ static inline int is_file_lru(enum lru_list l)
 
 static inline int is_active_lru(enum lru_list l)
 {
-  return ((l % 2) == 1) && l <= LRU_ACTIVE_LINKED_FILE;
+  return (l == LRU_ACTIVE_ANON || l == LRU_ACTIVE_FILE ||
+	  l == LRU_ACTIVE_LINKED_ANON || l == LRU_ACTIVE_LINKED_FILE);
 }
 
 static inline int is_unevictable_lru(enum lru_list l)

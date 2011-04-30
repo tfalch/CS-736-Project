@@ -102,21 +102,23 @@ struct page {
    */
   void *shadow;
 #endif
-  
+  /* mcpq-begin: */
   struct memory_chain * chain; // memory chain associated with.
   spinlock_t link_lock; /* protects (pairwise) concurrent access between
-			    1. link(chain, page) && ##PageReferenced(page) 
-			    2. free(page) && exit(task).
+			 * 1. link(chain, page) && ##PageReferenced(page) 
+			 * 2. free(page) && exit(task).
 			 */
   struct list_head link;
+  /* mcpq-end */
 };
 
+/* mcpq-begin: chain object definitions */
 typedef enum eviction_policy {
-    MM_FIFO,
-    MM_RAND,
-    MM_LRU,
-    MM_NRU,
-    MM_MRU
+    MCEP_FIFO,
+    MCEP_RAND, /* default option */
+    MCEP_LRU,
+    MCEP_NRU,
+    MCEP_MRU
 } eviction_policy_t;
 
 typedef struct memory_chain_attr {
@@ -150,6 +152,7 @@ typedef struct memory_chain_collection {
     memory_chain_t ** chains; // memory chain array.
     spinlock_t lock;
 } memory_chains;
+/* mcpq-end */
 
 /*
  * A region containing a mapping of a non-memory backed file under NOMMU
