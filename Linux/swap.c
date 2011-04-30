@@ -284,6 +284,14 @@ void activate_page(struct page *page)
  */
 void mark_page_accessed(struct page *page)
 {
+	//When one page in a chain is touched, we should:
+	//  reset it's ref counter
+	//  set the pages chains delegate to this page
+	if(page->chain != NULL){
+		atomic_set(&page->chain->ref_counter, page->chain->nr_links);
+		page->chain->delegate = page;
+	}
+
     if (!PageActive(page) && !PageUnevictable(page) &&
 	PageReferenced(page) && PageLRU(page)) {
       
