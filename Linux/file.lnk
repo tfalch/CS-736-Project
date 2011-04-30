@@ -15,3 +15,4 @@ swap.c -> mm/
 vmstat.c -> mm/
 mmzone.h -> include/linux/
 mm_inline.h -> include/linux/
+mhint.c -> mm/

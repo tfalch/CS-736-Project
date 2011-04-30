@@ -249,7 +249,16 @@ int __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 		     unsigned long start, int len, unsigned int foll_flags,
 		     struct page **pages, struct vm_area_struct **vmas,
 		     int *nonblocking);
+struct page * __get_user_page(struct vm_area_struct * vma, unsigned long addr);
 void __unlink_page(struct page *);
+
+static inline int is_stack_guard_page(struct vm_area_struct * vma, 
+				      unsigned long addr) {
+  return (vma->vm_flags & VM_GROWSDOWN) &&
+    (vma->vm_start == addr) &&
+    !vma_stack_continue(vma->vm_prev, addr);
+  
+}
 
 #define ZONE_RECLAIM_NOSCAN	-2
 #define ZONE_RECLAIM_FULL	-1

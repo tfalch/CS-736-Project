@@ -122,7 +122,7 @@ void __unlink_page(struct page * pg) {
         list_del(&pg->link);
 
 	if (chain->anchor == pg) {
-	    sys_munlock(0, PAGE_SIZE); // TODO: 
+	    munlock_vma_page(pg);
 	    chain->anchor = NULL;
 	}
 
@@ -252,14 +252,7 @@ asmlinkage long sys_set_mem_chain_attr(unsigned int c,
     return 0;
 }
 
-static inline int stack_guard_page(struct vm_area_struct * vma, 
-				   unsigned long addr) {
-    return (vma->vm_flags & VM_GROWSDOWN) &&
-        (vma->vm_start == addr) &&
-        !vma_stack_continue(vma->vm_prev, addr);
-}
-
-static inline struct page * __get_user_page(struct vm_area_struct * vma,
+struct page * __get_user_page(struct vm_area_struct * vma,
 					    unsigned long addr) {
   
     int counter = 0;
@@ -319,7 +312,7 @@ static long __mlink_vma_pages_range(memory_chain_t * chain,
     BUG_ON(start < vma->vm_start || end > vma->vm_end);
 
     /* do not try to access the guard page of a stack vma */
-    if (stack_guard_page(vma, start)) 
+    if (is_stack_guard_page(vma, start)) 
         start += PAGE_SIZE;
 
     down_read(&vma->vm_mm->mmap_sem);
@@ -488,7 +481,7 @@ SYSCALL_DEFINE2(anchor, unsigned int, c, unsigned long, addr) {
     struct memory_chain_collection * chain_collection = current->mcc;
 
     if (chain_collection == NULL) {
-		return -1;
+        return -1;
     }
     
     /* acquire chain collection's lock. */
@@ -631,104 +624,3 @@ SYSCALL_DEFINE1(rls_mem_chain, unsigned int, c) {
     
     return 0; // Success
 }
-
-int __hate_page(struct page * page){
-	LIST_HEAD(l_inactive);
-
-	DEBUG_PRINT("hating page: %lu\n", (unsigned long)page);
-
-	ClearPageReferenced(page);
-
-	list_del(&page->lru);
-	ClearPageActive(page);
-	list_add(&page->lru, &l_inactive);
-
-	return 0;
-}
-
-int __hate_vma_pages_range(struct vm_area_struct * vma, 
-				    unsigned long start, unsigned long end){
-
-    unsigned long addr;
-    struct page * page = NULL;
-
-    DEBUG_PRINT("hate_vma_pages_range(): vma-range[s=%lu, e=%lu]; " \
-		"range[start=%lu, end=%lu]", vma->vm_start, vma->vm_end, 
-		start, end);
-
-    /* validate page ranges within vma. */
-    BUG_ON(start < vma->vm_start || end > vma->vm_end);
-
-    /* do not try to access the guard page of a stack vma */
-    if (stack_guard_page(vma, start)) 
-        start += PAGE_SIZE;
-
-    for (addr = start; addr < end; addr += PAGE_SIZE) {
-
-        page = __get_user_page(vma, addr);
-	
-		if (page != NULL) {
-
-			if(page->chain != NULL){
-				printk(KERN_EMERG "Cannot hate page in chain\n");
-			} else {
-	    		__hate_page(page);
-			}
-	    
-	    
-	   		DEBUG_PRINT("hate_vma_pages_range(): hated(address): %lu " \
-			"in vma: %lu", start, (unsigned long)vma);
-		} else {
-	    	DEBUG_PRINT("mlink_vma_pages_range(): no page found at %lu\n", 
-			addr);
-		}
-	}
-
-	return 0;
-}
-
-SYSCALL_DEFINE2(hate, unsigned long, start,	size_t, len) {
-
-	int r = -1;
-	unsigned long end = start + len;
-	unsigned long s = start;
-	unsigned long e = end;
-
-    struct mm_struct * mm = current->mm;
-    struct vm_area_struct * vma = find_vma(mm, s); // retrieve first vma. 
-
-	len = PAGE_ALIGN(len + (start & ~PAGE_MASK));
-    start &= PAGE_MASK;
-			
-
-    /* check valid vma returned. */
-    if (!vma || vma->vm_start >= end)
-        return -1;
-
-    DEBUG_PRINT("hate(): range[start=%lu, end=%lu]", start, end);
-
-    for (s = start; s < end; s = e) {
-
-        /* determine if current address lies outside range 
-	   of current vma; if so move to next vma. */
-		if (s >= vma->vm_end) 
-		    vma = vma->vm_next;
-
-		if (!vma || vma->vm_start >= end){
-		    return -1;
-		}
-
-		/* determine current vma's end address. */
-		e = end < vma->vm_end ? end : vma->vm_end;
-      
-		/* determine current vma's start address. */
-        if (s < vma->vm_start){
-	    	s = vma->vm_start;
-		}
-
-		r = __hate_vma_pages_range(vma, s, e);
-    }
-
-    return r;
-}
-		
