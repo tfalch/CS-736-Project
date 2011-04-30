@@ -459,6 +459,9 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
 
     DEBUG_PRINT("link_addr_rng() chain=%u, range[start=%lu, length=%u",
 		c, start, len);
+
+    /* release chain collection's lock. */
+    spin_unlock(&chain_collection->lock);
  
     /* 
      * chain's lock not acquired since previously
@@ -467,9 +470,6 @@ SYSCALL_DEFINE3(link_addr_rng, unsigned int, c, unsigned long, start,
      * the lock prior to modifying the linked pages.
     */
     error = do_mlink_pages(chain, start, len, 0);
-
-    /* release chain collection's lock. */
-    spin_unlock(&chain_collection->lock);
 		     
     return error;
 }
@@ -499,6 +499,9 @@ SYSCALL_DEFINE2(anchor, unsigned int, c, unsigned long, addr) {
     len = PAGE_ALIGN(PAGE_SIZE + (addr & ~PAGE_MASK));
     addr &= PAGE_MASK;
 
+    /* release chain collection's lock. */
+    spin_unlock(&chain_collection->lock);
+
     /* 
      * chain's lock not acquired since previously
      * linked pages which are forced eviction due
@@ -507,8 +510,6 @@ SYSCALL_DEFINE2(anchor, unsigned int, c, unsigned long, addr) {
     */
     error = do_mlink_pages(chain, addr, len, addr);
    
-    /* release chain collection's lock. */
-    spin_unlock(&chain_collection->lock);
 
     return 0;
 }
@@ -604,9 +605,9 @@ SYSCALL_DEFINE1(rls_mem_chain, unsigned int, c) {
     }
 
     spin_lock(&chain->lock);
-    DEBUG_PRINT("chain stats: eviction-count=%lu, nr-links=%lu, "	\
-		"ref_counter=%d", chain->evict_cnt,
-		chain->nr_links, atomic_read(&chain->ref_counter));
+    DEBUG_PRINT("chain stats: eviction-count=%lu, nr-links=%lu, " \
+		"ref_counter=%d", chain->evict_cnt, chain->nr_links, 
+		atomic_read(&chain->ref_counter));
 	  
     __unlink_chain(chain);
     spin_unlock(&chain->lock);

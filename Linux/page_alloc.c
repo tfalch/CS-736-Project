@@ -643,6 +643,7 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 {
 	int i;
 	int bad = 0;
+	struct memory_chain * chain = NULL;
 
 	trace_mm_page_free_direct(page, order);
 	kmemcheck_free_shadow(page, order);
@@ -659,6 +660,24 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 	  debug_check_no_obj_freed(page_address(page),
 					   PAGE_SIZE << order);
 	}
+
+	/* mcpq-begin: unlink freed page. */
+	if ((chain = page->chain) != NULL) {
+
+	    spin_lock(&chain->lock);
+	    spin_lock(&page->link_lock);
+
+	    if (page->chain != NULL) {
+	        page->chain->evict_cnt++;
+	    }
+
+	    __unlink_page(page);
+	    
+	    spin_unlock(&page->link_lock);
+	    spin_unlock(&chain->lock);
+	}
+	/* mcpq-end */
+
 	arch_free_page(page, order);
 	kernel_map_pages(page, 1 << order, 0);
 

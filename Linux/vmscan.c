@@ -712,8 +712,6 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 	unsigned long nr_congested = 0;
 	unsigned long nr_reclaimed = 0;
 
-	struct memory_chain * chain = NULL;
-
 	cond_resched();
 
 	while (!list_empty(page_list)) {
@@ -788,22 +786,6 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 				goto activate_locked;
 			may_enter_fs = 1;
 		}
-
-		/* mcpq-being: unlinked linked pages. */
-		if ((chain = page->chain) != NULL) {
-		    spin_lock(&chain->lock);
-		    spin_lock(&page->link_lock);
-
-		    if (page->chain) {
-		        page->chain->evict_cnt++;
-		    }
-
-		    __unlink_page(page);
-
-		    spin_unlock(&page->link_lock);
-		    spin_unlock(&chain->lock);
-		}
-		/* mcpq-end */
 
 		mapping = page_mapping(page);
 
