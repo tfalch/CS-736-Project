@@ -5,6 +5,7 @@
 #include <math.h>
 #include <time.h>
 #include <sys/time.h>
+#include <sys/mman.h>
 
 #include "mchain.h"
 
@@ -35,20 +36,24 @@ int time_difference(struct timeval * result,
 }
 
 double getRandomNumber(){
-	return 4.0;
+	return rand();
 }
 
 int findMatrixSize(int megabytes){
-	double megabytesPrMatrix = ((double)megabytes)/3.0;
-	double bytesPrMatrix = megabytesPrMatrix * 1e6;
+	double bytesPrMatrix = megabytes * 1e6;
 	double matrixSize = bytesPrMatrix/((double)sizeof(double));
-	matrixSize = sqrt(matrixSize);
 	return (int)matrixSize;
 }
 
 
 int main(int argc, char** argv){
+
+	//First matrix: h #rows X matrixSize #cols 
+	//Second matrix: w #cols X matrixSize #rows 
+	//Result matrix:  w x h
 	int matrixSize = 3;
+	int h = 3;
+	int w = 5;
 	int output = 0;
 	int love = 0;
 	if(argc > 1){
@@ -63,8 +68,8 @@ int main(int argc, char** argv){
 	}
 
 
-	double** firstMatrix = malloc(sizeof(double*)*matrixSize);
-	for(int i = 0; i < matrixSize; i++){
+	double** firstMatrix = malloc(sizeof(double*)*10);
+	for(int i = 0; i < h; i++){
 		firstMatrix[i] = malloc(sizeof(double)*matrixSize);
 
 		for(int j = 0; j < matrixSize; j++){
@@ -72,8 +77,8 @@ int main(int argc, char** argv){
 		}
 	}
 
-	double** secondMatrix = malloc(sizeof(double*)*matrixSize);
-	for(int i = 0; i < matrixSize; i++){
+	double** secondMatrix = malloc(sizeof(double*)*10);
+	for(int i = 0; i < w; i++){
 		secondMatrix[i] = malloc(sizeof(double)*matrixSize);
 
 		for(int j = 0; j < matrixSize; j++){
@@ -81,9 +86,9 @@ int main(int argc, char** argv){
 		}
 	}
 
-	double** resultMatrix = malloc(sizeof(double*)*matrixSize);
-	for(int i = 0; i < matrixSize; i++){
-		resultMatrix[i] = malloc(sizeof(double)*matrixSize);
+	double** resultMatrix = malloc(sizeof(double*)*h);
+	for(int i = 0; i < w; i++){
+		resultMatrix[i] = malloc(sizeof(double)*10);
 	}
 
 	struct timeval start;
@@ -99,21 +104,23 @@ int main(int argc, char** argv){
 	}
 
 
-	for(int i = 0; i < matrixSize; i++){
+	for(int i = 0; i < h; i++){
 
 		double* row = firstMatrix[i];
+		double* col;
 		
-		if(love){
-			mlink(0, row, sizeof(row));
-		}
 
-		for(int j = 0; j < matrixSize; j++){
+		for(int j = 0; j < w; j++){
 
-			double* col = secondMatrix[j];
+			col = secondMatrix[j];
 
 			double sum = 0.0;
 			for(int k = 0; k < matrixSize; k++){
 				sum += row[k]*col[k];
+			}
+
+			if(love && j == 0){
+				mlink(0, row, matrixSize*sizeof(double)); 
 			}
 
 			resultMatrix[i][j] = sum;
@@ -123,12 +130,14 @@ int main(int argc, char** argv){
 		}
 		if(love){
 			brk_mchain(cid);
-			//hate col
+			hate(col, matrixSize*sizeof(double));
 			//hate matrix[i][j]
 		}
 	}
 	
-	rls_mchain(cid);
+	if(love){
+		rls_mchain(cid);
+	}
 
 	gettimeofday(&stop, NULL);
 	

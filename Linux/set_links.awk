@@ -1,4 +1,4 @@
-#!/bin/awk -f
+#!/usr/bin/awk -f
 
 BEGIN {
     path="/root/CS-736-Project/Linux/"
