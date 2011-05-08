@@ -52,8 +52,8 @@ int main(int argc, char** argv){
 	//Second matrix: w #cols X matrixSize #rows 
 	//Result matrix:  w x h
 	int matrixSize = 3;
-	int h = 3;
-	int w = 5;
+	int h = 1;
+	int w = 9;
 	int output = 0;
 	int love = 0;
 	if(argc > 1){
@@ -68,7 +68,7 @@ int main(int argc, char** argv){
 	}
 
 
-	double** firstMatrix = malloc(sizeof(double*)*10);
+	double** firstMatrix = malloc(sizeof(double*)*h);
 	for(int i = 0; i < h; i++){
 		firstMatrix[i] = malloc(sizeof(double)*matrixSize);
 
@@ -77,7 +77,7 @@ int main(int argc, char** argv){
 		}
 	}
 
-	double** secondMatrix = malloc(sizeof(double*)*10);
+	double** secondMatrix = malloc(sizeof(double*)*w);
 	for(int i = 0; i < w; i++){
 		secondMatrix[i] = malloc(sizeof(double)*matrixSize);
 
@@ -87,8 +87,8 @@ int main(int argc, char** argv){
 	}
 
 	double** resultMatrix = malloc(sizeof(double*)*h);
-	for(int i = 0; i < w; i++){
-		resultMatrix[i] = malloc(sizeof(double)*10);
+	for(int i = 0; i < h; i++){
+		resultMatrix[i] = malloc(sizeof(double)*w);
 	}
 
 	struct timeval start;
