@@ -32,7 +32,7 @@ int time_difference(struct timeval * result,
 }
 
 double getRandomNumber(){
-	return 4.0;
+	return rand();
 }
 
 int getNoOfColsForMB(int mb){
@@ -40,7 +40,7 @@ int getNoOfColsForMB(int mb){
 }
 
 int main(int argc, char** argv){
-	int noOfRows = 10;
+	int noOfRows = 5;
 	int noOfCols = 1000;
 	int love = 0;
 
@@ -48,10 +48,11 @@ int main(int argc, char** argv){
 		noOfCols = getNoOfColsForMB(atoi(argv[1]));
 	}
 	if(argc > 2){
-		noOfRows = atoi(argv[2]);
+		love = atoi(argv[2]);
+		
 	}
 	if(argc > 3){
-		love = atoi(argv[3]);
+		noOfRows = atoi(argv[3]);
 	}
 
 
@@ -83,12 +84,13 @@ int main(int argc, char** argv){
 	for(int row = 1; row < noOfRows -1; row++){
 		
 		if(love){
+			brk_mchain(cids[ptr]);
+
 			if(row > 1){
 				hate(rows[row - 2], noOfCols*sizeof(double));
 			}
 
-			brk_mchain(cids[ptr]);
-			mlink(cids[ptr], rows[row+1], noOfCols*sizeof(double));
+			mlink(cids[ptr], rows[row], noOfCols*sizeof(double));
 
 			ptr += 1;
 			ptr = ptr%2;
