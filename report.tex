@@ -1,0 +1,604 @@
+\documentclass[10pt,a4paper,twocolumn]{article}
+\usepackage[latin1]{inputenc}
+\usepackage{url}
+\usepackage{tabularx}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{abstract}
+
+\author{Thomas Falch, Greig Hazell \\ Department of Computer Sciences \\ University of Wisconsin, Madison}
+\title{Memory Chaining: Improving Memory Management Performance with User-Defined Locality Sets}
+\begin{document}
+
+\maketitle
+\begin{onecolabstract}
+A general purpose operating system must manage the resources for a diverse set of applications. This
+generally results in a one size fits all best effort solution, which provides decent service in most
+cases, but applications with special needs might suffer. If applications could provide the O/S with
+hints about their needs, performance could be improved. We have looked at this problem in the
+context of memory management. We have modified the memory management unit of the Linux kernel to
+allow applications to give hints about which pages the application will and will not use. In
+particular, we have added system calls which allows applications to create and modify memory chains,
+which intuitively correspond to the set of pages being currently actively used by the application.
+We have evaluated our system by running and measuring the performance of two applications with
+memory access patterns which tends to work poorly with commonly used page reclamation algorithms.
+Our results show that the performance can be improved (by as much as 67\%) in some cases.
+\end{onecolabstract}
+
+\section{Introduction}
+For the past few years, the popularity of mobile computing devices, in terms of sales and usage has
+increased dramatically.  The upswing for these kinds of devices began several years ago with the
+introduction of ultra mobile and netbook computers, which offers comparable but reduced computing
+power relative to traditional laptops at a much-reduced cost. Today this trend continues with the
+tremendous success of smart phones and tablets such as Apple's iPhone\texttrademark and
+iPad\texttrademark devices as well as numerous counterparts from various competitors using Google's
+Android\texttrademark and Microsoft's WP7\texttrademark software platforms.
+
+Unfortunately, since the physical size is reduced, and battery power is limited, increasing the
+mobility of a computing device results in a reduction in available computing power and resources.
+Naturally, there is increased contention for the limited resources available on these devices.
+Consequently the multiplexing of resources by the operating system will have a greater impact on the
+performance of these devices than in larger computing devices such as a traditional desktop
+computer, where plentiful resources may compensate for poor O/S resource management.
+
+A general-purpose operating system will perform all the necessary resource allocation and management
+on behalf of running applications. Delegation of resource management by an application to the O/S
+generally results in a one size fits all best effort approach. That is, a general-purpose O/S will
+use a single resource management scheme that will offer satisfactory to good performance for the
+myriad of applications it serves. While under most circumstances, the performance of the resource
+management unit (RMU) by the O/S will satisfy the requirements of a running application, there are
+several instances in which performance is hindered by the O/S's RMU and the application will ask the
+O/S to step aside. As an example, Relational Database Management Systems (RDBMS) commonly includes a
+custom  designed memory management unit (MMU). Development of a specialized RMU is generally limited
+to high performance applications and is carried out by highly trained software engineers. So it begs
+the question, given the one size fits all best effort approach of an O/S, how can we improve the RMU
+of an O/S for to satisfy the needs for a greater variety of applications without requiring the user
+to develop his/her specialized RMU. 
+
+In this paper we focus specifically on improving the MMU of an operating system by allowing the user
+to supply several hints to the MMU.  Briefly, these hints come in the form of which pages should be
+retained and which pages should be reclaimed by the MMU.  Allowing the user to provide memory
+management hints (MMH) offers several advantages as well as fewer drawbacks compared to other
+approaches to improve the performance of the O/S's MMU, such as an adaptive O/S or a micro-kernel
+O/S. In both of these cases, there is an increase in the performance overhead of the O/S, making
+these solutions impractical.  In the case of an adaptive O/S, the increase in O/S overhead is due to
+the expense of monitoring an application's behavior and detecting its memory access patterns at
+run-time. Micro-kernel's allowings a greater flexibility in O/S design (as compared to a monolithic
+O/S kernel), but are notorious for their poor performance due to the increased message passing
+between the various components. Giving the already limited resources in a mobile device, any
+increase in O/S overhead is undesirable.  
+
+The rest of the paper is outlined as follows: the next section provides background information about
+common page replacement algorithms. Section 3 provides an abstract overview of our solution, memory
+chaining with priority queues (MCPQ). Section 4 details our modifications to the Linux Kernel to
+implement our solution. In section 5 we present the results of our evaluation of our system. We
+discuss these results in section 6, and briefly mention possibilities for future work in section 7.
+Section 8 concludes.
+
+\section{Background}
+
+\subsection{Page Replacement}
+Page replacement is a necessary feature in a modern general-purpose
+operating system. This results primarily from an owner's expectation of being able to use his/her
+device to run multiple applications at once. Consequently the choice of swapping out a process and
+freeing all of its pages, thereby reducing memory contention is no longer a viable option in most
+circumstances. As a result, in order to handle the allocation and contention for system memory in a
+multiprogramming environment, a modern O/S must provide some page replacement policy. 
+
+While an optimal page replacement algorithm results in the fewest number of page faults, such an
+algorithm is infeasible, as it requires future knowledge about an application's memory access.
+Consequently, most operating systems attempt to approximate the optimal solution via a
+least-recently-used (LRU) page replacement algorithm.  The LRU maintains for each memory page, the
+page's last time of use (via a logical clock or counter).  When a page must be replaced, the LRU
+algorithm selects the page the oldest timestamp. The LRU algorithm approximates the optimal page
+replacement algorithm based on the premise that we may use the recent past to approximate the near
+future \cite{SILBER}. That is, pages, which have not being accessed for a long
+period of time, are very unlikely to be accessed soon. 
+
+Maintaining a true LRU scheme is not supported by most operating systems due to insufficient
+hardware support. Instead an approximation of LRU is achieved via the Second-Chance algorithm. In
+the second-chance algorithm, each page has a reference bit associated with it. When a page is
+selected for replacement, its reference bit is first inspected. If the value of the reference flag
+is 0, the page frame is replaced. Otherwise, the referenced bit is set to 0 (i.e., the page is given
+a second chance) and the algorithm advances to next page. A typical implementation of the
+second-chance algorithm (commonly known as the clock algorithm) involves storing the pages in a
+circular queue and moving the hand across the queue. As the hand cycles across the queue, it clears
+the reference flag of swept pages.
+ 
+The second-chance algorithm is enhanced further (Enhanced Second-Chance Algorithm) by associating an
+ordered pair of bits with each page an, a reference bit and a modify/dirty bit. Based on the value
+of these two bits, a page will reside in one of four priority classes: (0, 0) - reference bit = 0,
+modified bit = 0, lowest priority class and the best page to replace, (1, 0), (0, 1) and (1, 1) -
+highest priority class, the page is recently used and dirty; the page is likely to be used again
+soon. Deciding which page to replace involves selecting the first page from lowest nonempty class.
+
+\subsection{Motivation - Thrashing and Locality Sets}
+In scenarios where memory is under undue
+strain due to over-allocation or a disproportionate allocation of page frames and high memory
+contention, the system may enter a state known as thrashing. Periods of thrashing are marked by low
+resource utilization, high paging activity and low advancement of a process's progress.  Thrashing
+may result if there is insufficient page frames to store an application's active page set. Under
+these circumstances, the process begins faulting and taking frames away from other processes.
+However, these processes require those pages and fault when accessing the pages resulting in
+additional frames being taken away from other processes.  Once started, thrashing is typically
+self-sustaining and continues until the original circumstances which initiated the trashing no
+longer exists \cite{THRAS}. 
+
+Thrashing may be mitigated if each process is allocated a sufficient number of frames to store its
+active page set. The active page set for a process can be determined by the locality model which
+states that "as a process executes, it moves from locality to locality" and a "locality is a set of
+pages that are actively used together" \cite{SILBER}. Therefore if each process
+is allocated a sufficient number of frames to store its current locality, and no process is
+allocated a disproportionate over-allocation of frames, the likelihood of any process having too few
+frames available for its current locality, and consequently trashing, is low.
+
+It is this mitigation of thrashing by the locality model, which provides the necessary motivation
+for our proposed solution to enhancing an O/S MMU, Memory Chains with Priority Queues (MCPQ).
+	Briefly, in MCPQ, pages belonging to a given memory chain are linked together and share a common
+	effective-timestamp. It is this effective-timestamp, which is used to determine a page's age and
+	ultimately decide which page will be replaced. For example, a page belonging to a memory chain
+	C, has an effective-timestamp = $max(p\_{i}.timestamp p\_{i} \in C)$.
+
+\subsection{Motivating Example}
+\label{example}
+While the LRU page replacement algorithm's performance is acceptable
+under most circumstances, there are many common access patterns in which the LRU's performance
+degenerates due to excessive thrashing. Here we explore a naïve matrix multiplication algorithm,
+highlighting circumstances under which this degenerative performance is exhibited and demonstrate
+how MCPQ remedies this degenerative behavior. 
+
+The following matrices are used in this example:
+
+\[ A = 
+\left[ {\begin{array}{cccc}
+5 & 4 & 7 & 9  \\ 
+3 & 1 & 1 & 8  \\ 
+7 & 0 & 3 & 6  \\ 
+\end{array}
+} \right]
+ B = 
+\left[ {\begin{array}{ccc}
+ 3 & 1 & 6   \\
+ 6 & 8 & 0   \\
+ 0 & 6 & 3   \\
+ 2 & 2 & 1   \\
+ \end{array} } \right]
+\]
+
+The state of the memmory is illustrated in fiugre ~\ref{memory}. To simplify the illustration, each
+page frame stores a single value. Page n refers to the page frame whose content equals n rather than
+the physical page frame number. A total of 6 page frames are available to the matrix multiplication
+algorithm. Five page frames are reserved for storing the values of the input matrices and the 6th
+frame (not shown) is reserved to store the result of the multiplication. Each row vector belonging
+to the A matrix is assigned a unique memory chain and pages within each row are added to its
+corresponding row's memory chain.
+
+\begin{figure*}[htbp]
+\centering
+\includegraphics[scale=0.6]{memory.png}
+\caption{\emph{\small State of Memory. Each table shows the state of the memory for subsequent iterations of the algorithm. The contents of a page frame include: [the page's contents, the unique timestamp, and the effective-timestamp].  Timestamps are modulo 16.}}
+\label{memory}
+\end{figure*}
+
+In the example, the 5 page frames are initially empty. The first five references, (5, 3, 4, 6 and 7)
+result in a page fault and the items are brought into memory and stored in the empty frames. In a
+true LRU scheme, the next reference, 0, replaces page 5 since page 5 has the oldest unique timestamp
+value. However, as page 5 is linked with pages 4 and 7, its effective-timestamp of 3 is more recent
+than page 3's effective-timestamp, 1. Consequently, page 3 is selected for replacement. The next
+reference, 9 is brought into memory and replaces page 6. As page 9 is linked to pages 5, 3, 4 and 7,
+their effective timestamp is updated to 6. The next reference 2, replaces page 0. Next, we again
+reference page 5. As mentioned earlier, in a true LRU page replacement algorithm, page 5 would have
+been previously replaced on our reference to page 0. Hence, our second access to page 5 would have
+resulted in a subsequent page fault. However, in MCPQ, page 5's second as well as 3rd reference do
+not result in subsequent page fault, but merely an update to the effective timestamp of pages
+belonging to the memory chain.
+
+
+
+In general, for the above illustration, a true LRU page replacement algorithm will incur a page
+fault on each access to elements belonging to either matrix. This is in contrast with LRU+MCPQ,
+which incurs a page fault on each reference to B's elements, and on the initial reference to an item
+belonging to the A matrix. Under the given memory circumstances, LRU+MCPQ leads to 1/3 fewer page
+faults as compared to pure LRU.
+
+\section{System Overview}
+In this section we provide an abstract overview of our system, MCPQ. This is followed by a
+discussion of integrating MCPQ within the Linux kernel MMU. We begin by briefly discussing other
+potential solutions, which allowed us to devise several goals (we aimed for when designing our final
+solution). This is followed by a detailed description of an abstract MCPQ model and the advantages
+our proposed solution have over other potential solutions.
+
+\subsection{Goals}
+In this section, we will briefly highlight various potential solutions discussed by the authors as
+well as desirable features of a potential solution. We will give a brief overview of each potential
+solution and one or more reasons why the solution was rejected. Here, we will focus only on
+solutions that involve human input via hinting. While closed loop systems, such as an adaptive O/S
+are capable of improving O/S memory management performance, closed loop systems are generally
+impractical due to the increased performance overhead as detailed earlier and will therefore not be
+discussed any further.
+
+The first potential solution involved us modifying the O/S MMU to provide some flavor of various
+page replacement algorithms.  A user would then select the most suitable policy for his/her
+application. While quite attractive, there are several drawbacks to the above solution. Firstly, an
+O/S MMU uses a global page replacement policy as opposed to a local replacement policy\footnote{In a
+global page replacement policy, all page frames are eligible for replacement. In a local page
+replacement policy, only the faulting application's pages are considered for page replacement.}.
+Consequently, in order to provide this added flexibility to the user, we would be required to
+augment the O/S kernel's MMU's page replacement policy as well as modify many of the its internal
+data structures; a great undertaking giving the limited time and resources available. Of graver
+concern however, arose from the fact that applications as noted by the locality-set model, enter and
+exit various localities during its lifetime, with localities potentially requiring diverse and
+opposing replacement algorithms.  For example, one locality may be more suited for an LRU
+replacement algorithm, while a second locality may be more suited by a most-recently-used (MRU) page
+replacement algorithm. Consequently, any single page replacement policy at the application level is
+susceptible to degenerative performance at some point in an application's execution lifetime.
+
+To overcome the above drawbacks, we decided a user should be able to provide MMHs at finer
+granularity. As a result, we decide hints should be provided at the page level rather than the
+application level. The simplest and most straightforward solution would be a pin/unpin MMH model.
+Users would be allowed to explicitly indicate to the O/S which pages are immune from eviction via a
+pin operator.  A pin/unpin model however, burdens the user with additional memory management
+responsibilities, requiring pinned pages to be explicitly unpinned in order for the page to be
+eligible for replacement when no longer required by the user. Additionally, a pin/unpin model allows
+a user to indiscriminately pin as many pages as possible which negates any benefits of the operator
+to the user or worse, has a negative impact on users whose applications elected not to utilize the
+operator.
+
+Our third solution was similar to that proposed by \cite{NEU} which may be viewed as an
+Extended Enhanced Second-Chance Algorithm or an n-Enhanced Second-Chance Algorithm. The basic
+principle behind their model is to extend the definition of a page's reference bit/counter. In their
+model, the reference counter is used to specify a page's priority [0..255]. When a page is eligible
+for eviction, its priority value is decremented and only if the page's reference counter equals 0 is
+	the page actually replaced. This solution has the advantage of a set-n-forget system (compare to
+	pin/unpin model). However, it requires mastery of assigning page priorities across localities
+	and applications or requiring the user to explicitly reset a page's priority.
+
+From the above discussions, the following three goals were devised and declared desirable for a proposed solution:
+
+\begin{enumerate}
+  \item \textbf{System Flexibility} - a potential solution should be flexible and provide a local page replacement policy per application per locality.
+  \item \textbf{Set-n-Forget Approach} - a proposed solution should not burden the user with additional memory management responsibilities.  Ideally a proposed solution should be a set-n-forget system. That is a user should not be required to explicitly invoke a complementary operator after invoking a hint operator; in such cases, the system automatically handles any required clean up.
+  \item \textbf{Compatible} - a proposed solution should seamlessly and effortlessly fit within the page replacement policy of a modern operating system. A complete overhaul or major rewrite of an O/S's MMU is undesirable and unlikely.
+\end{enumerate}
+
+\subsection{System Design}
+The MCPQ model may be best described as a hierarchical memory management system with user defined
+locality sets, which we call memory chains. The key principle behind the model is the sharing of a
+single effective eviction value amongst all pages linked in a single memory chain.  For example, in
+an LRU+MCPQ page replacement policy, the effective eviction value is the most recent timestamp
+amongst all the pages residing within a chain. Furthermore, each memory chain specifies a local page
+replacement policy dictating the order in which pages are unlinked/evicted from a memory chain.  
+ 
+In addition to the user defined memory chains, there are three system-managed memory chains: a hated
+chain, a spillover chain and a default chain. We will momentarily defer discussion of the spillover
+chain, as a few additional details are required. The hated chain consists of pages, which have been
+explicitly unlinked/hated by the user. Pages that have not been added to any user-defined chain are
+automatically linked to the default chain. The key difference between a page residing in a
+system-maintained chain and user-defined memory chain is the determination of the page's effective
+eviction value.  When residing in system memory chain, a page's effective eviction value is the same
+as its unique eviction value.
+ 
+Each memory chain is assigned one of 3 priority levels. The hated chain and spillover chain are
+assigned priority levels 0 and 1 respectively. User defined chains and the default system chain are
+assigned the highest priority level, 2. 
+
+The MCPQ memory management system utilizes a 2-phase page replacement algorithm. The first phase, a
+global eviction phase, involves selecting the lowest priority nonempty memory chain or utilizing
+some heuristic in the case of ties. The second phase entails selecting an actual page for
+replacement.  The victim page is determined by the local page replacement policy for the chain
+selected in phase 1. This may be any standard page replacement algorithm such as LRU or MRU.  
+ 
+In order to allow the user to create and manage his/her memory chains, several system calls were created. The details of these calls are given below.
+
+\begin{itemize}
+  \item mchain(): allocates and initializes a new chain structure and returns a chain handler to the user.
+  \item set\_mchain\_attr(chain\_hdlr, attributes): sets the attributes such as the local eviction policy for the memory chain specified by the given chain handler.
+  \item mlink(chain\_hdlr, page): adds the specified page to the chain specified by the provided chain handler. Any previously established links held by the page are automatically broken.
+  \item munlink(page): unlink a page from its containing chain. In addition the page is moved to hated chain.
+  \item brk\_mchain(chain\_hdlr): unlink all pages present in the chain given by the specified handler and moves the pages to the hated chain.
+  \item rls\_mchain(chain\_hdlr): breaks the memory chain given by the specified handler and releases any resources allocated for the underlying chain structure.
+\end{itemize}
+
+Our basic MCPQ model was enhanced further with the following additions:
+
+\begin{enumerate}
+  \item Page Anchoring - page anchoring is a local (w.r.t. to containing chain) pin operation. An manchor(chain\_hdlr, pg) system call was created to allow the user to perform page anchoring.
+  \item Bounded Memory Chain - a bounded memory chain is a fixed length memory chain. Page additions that result in overflow force an existing linked page to be evicted from the memory chain. The evicted page is implicitly hated by the user and is moved to the spillover chain.
+  \item Anchored Memory Chain ­- on an external page eviction, the effective eviction value is updated. 
+\end{enumerate}
+
+Figure ~\ref{MLM} provides an overview of the memory structure in the MCPQ memory management system.
+
+\begin{figure*}[htbp]
+\centering
+\includegraphics[scale=0.3]{MLM.png}
+\caption{\emph{\small Memory Representation in MCPQ Mode}}
+\label{MLM}
+\end{figure*}
+
+\section{Linux Integration}
+In order to evaluate our proposed solution, the MCPQ model was incorporated within the Linux Kernel
+Memory Management System. Here we detail the necessary modifications as well as our experience
+during this integration phase. When necessary, we will provide a high level explanation of the Linux
+kernel memory management subsystem, which may aid in our expository. One piece of information worth
+mentioning at this time however is that the Linux Kernel memory manager uses an Enhanced
+Second-Chance page replacement algorithm. 
+ 
+Because of time constraints and limited resources, a few of the MCPQ model features such as
+automatic cleanup were either not implemented or poorly handled by the current implementation.
+However, none of the absent features should have a significant detrimental impact while evaluating
+our prototype system as our model would be evaluated in a controlled environment allow us to limit
+the impact of the missing features. Table ~\ref{features} provides a summary of the current state of
+integrating the MCPQ model within the Linux Kernel.
+
+\begin{table*}[htbp]
+\centering
+{\small 
+\begin{tabularx}{\textwidth}{|l|l|X|}\hline
+\textbf{Feature} & \textbf{Implemented} & \textbf{Details}\\ \hline \hline
+New System Calls & Yes & Added memory chain structure and necessary system calls to link/unlink an address range. \\ \hline
+Hated Chain & Yes & Move the page to inactive list and set its reference bit to 0. \\ \hline
+Spillover Chain & Yes & Move the page to inactive list. The page's reference bit is left unmodified. \\ \hline
+Chained Queue & Partial Implementation & Created new disjoint set, LRU\_LINKED. \\ \hline
+Page Anchoring & Simulated & Simulated via the mlock/munlock system calls. \\ \hline
+Automatic clean up & No & - \\ \hline
+Local Policies & No & - \\ \hline
+Anchored Memory Chains & No & - \\ \hline
+\end{tabularx}
+}
+\caption{\emph{\small Summary of MCPQ implementation details.}}
+\label{features}
+\end{table*}
+
+When modifying the Linux kernel, we decided to follow an incremental approach guided by the
+following principle: add features that may be implemented external to the existing codebase or that
+require few modifications or modifications that could be localized and well understood.  An obvious
+place to begin then was the addition of the memory chain structure and the system calls necessary to
+manipulate the memory chain. One obvious modification from our abstract system was to our system
+call interface with respect to linking and unlinking pages.  Here we followed the interface provided
+by the mlock and munlock system calls which allow the user to specify an address range (by providing
+a start address and the length of the address range) indicating pages that contain addresses covered
+in the range should be linked/unlinked. The obvious advantage is a single invocation of the desired
+system call as opposed to multiple times when linking a contiguous block of memory. 
+
+The memory chain structure is essentially a linked list of pages. Going into the details of its
+structure will impart no illuminating insight unto the reader. However, it does contain one critical
+piece of information worth mention, the effective eviction value for its member pages. In a naive
+implementation, maintaining the effective eviction value in each page would require walking the
+entire linked list and updating each page's referenced bit. However, such a solution would be
+infeasible due to the extremely high cost of walking a linked list on each page access. Instead, we
+opted to simulate this by storing a ref\_counter within each chain. When a chain's member page's
+reference bit is set, we increment the chain's ref\_counter. Likewise, when the page's reference bit
+is cleared, we decrement the chain's ref\_counter. Updating and accessing the ref\_counter as well
+as returning the correct effective referenced value were a trivial matter. It required us to simply
+modify the appropriate PageReferenced macros, which test, set and clear the page's referenced bit.
+As there were instances in which the original behavior was required, we implemented the original
+macros under the names \_\_PageReferenced.
+
+At this time we decided to do some initial testing of our system. To understand why, some background
+information is required. As mentioned earlier, the Linux page frame replacement algorithm is based
+on the enhanced second-chance algorithm.
+ 
+Linux's implementation of the enhanced second-chance algorithm, which is illustrated in figure
+~\ref{linux}, varies slightly from the above discussion in the following ways. Firstly, the
+algorithm uses an active flag instead of the modify flag. Furthermore, pages are "grouped into two
+lists called the inactive list and the active list" \cite{BOU} based on how recently the
+page was accessed. By migrating recently accessed pages to an active list, it prevents these pages
+from being scanned by the algorithm when searching for a page frame to reclaim. The page's
+referenced flag is used to "double the number of accesses required to move a page from the inactive
+list to the active list" \cite{BOU}. That is, a page migrates from the inactive list to the
+active list only if on a subsequent page access the page's referenced flag is set.
+
+\begin{figure*}[htbp]
+\centering
+\includegraphics[scale=0.5]{linux.png}
+\caption{\emph{\small Page migration between the active and inactive lists in the Linux Kernel}}
+\label{linux}
+\end{figure*}
+
+Based on this, with the exception of the first accessed linked page (which sets the effective
+referenced flag), a link page should bypass this double access requirement and hence short-circuited
+to the active list on a single page access. This implies that a linked page should be protected from
+replacement since it is likely to reside in the active list.
+ 
+However, our initial results were a mixed bag. The likely reason for this is due to Linux's memory
+management system, which attempts to maintain various ratios between the active list and the
+inactive list. As a result, when the page frame replacement algorithm is triggered\footnote{The page
+frame replacement algorithm is triggered either periodically via the kswapd daemon, or when the
+system enters a low on memory state due to a memory allocation failure.}, the "imbalanced" ratio
+between the two lists causes the algorithm to restore the desired ratio by migrating several pages
+from the active list to the inactive list. Since we made no additional modifications to indicate
+linked (active) pages should be treated with a higher priority, a linked page was as susceptible for
+migration and eventually replacement as an unlinked active page.
+
+Hence, we were required to indicate a higher priority for linked pages. An obvious solution would be
+to simply add a third list, linked, and placed at priority higher than that of the active list.
+However we decided to go a slightly different route.
+ 
+In addition to the active and inactive lists, pages in the Linux kernel reside in two additional
+disjoint priority queues, LRU\_ANON and LRU\_FILE.  The only detail necessary to know about these
+queues, is that a private active list and inactive list is managed within each queue. We therefore
+decided to integrate two additional disjoint sets, LRU\_LINKED\_ANON and LRU\_LINKED\_FILE each with
+a higher priority than its unlinked counterpart. Like the current existing queues, the LRU\_LINKED
+queues also maintain their own active and inactive lists. Adding the linked lists at this point is
+in-line with our above principle and our goal of system compatibility. This approach offered several
+benefits including freeing us from modifying the existing active<->inactive page migration
+algorithms to include migrating a page to and from a third list. Instead, we can migrate pages at
+the link and unlink system calls moving pages between the LINKED queue and its counterpart. There
+are also additional positive side effects of this decision. By maintaining the list of active and
+inactive linked pages, we can minimize penalizing applications that do not make use of memory
+chains. This can be accomplished for example by keeping the active LRU\_ANON list and the inactive
+LRU\_LINKED\_ANON list at the same priority level. We can then switch between which lists is
+examined first on each iteration of the algorithm. In our implementation, the inactive linked list
+is kept at strictly higher priority than its active unlinked counterpart, since it would allow us to
+simulate a pseudo-local policy by evicting all non-linked pages first.
+
+\section{Results}
+To evaluate our implementation, we ran two different test applications with our modified kernel, and
+measured their relative performance when run with and without using our new system.
+
+Two test applications were used, one performing matrix multiplication, and one performing image
+convolution \cite{GONZALES}. They were chosen
+because  both solve important real life problems, rather than being contrived toy examples. Further,
+they have memory access patterns which tends to suffer from the problems described in section
+~\ref{example}, meaning that they could potentially benefit greatly from our new system. Finally,
+their predictable memory access patterns makes it easy to insert our new calls.
+
+\begin{figure*}[htbp]
+\centering
+\includegraphics[scale=0.4]{MMr.png}
+\caption{\emph{\small Distribution of running time for matrix multiplication}}
+\label{MMr}
+\end{figure*}
+
+\begin{figure*}[htbp]
+\centering
+\includegraphics[scale=0.4]{MMp.png}
+\caption{\emph{\small Distribution of page faults for matrix multiplication}}
+\label{MMp}
+\end{figure*}
+
+\begin{figure*}[htbp]
+\centering
+\includegraphics[scale=0.4]{ICr.png}
+\caption{\emph{\small Distribution of running time for image convolution}}
+\label{ICr}
+\end{figure*}
+
+\begin{figure*}[htbp]
+\centering
+\includegraphics[scale=0.4]{ICp.png}
+\caption{\emph{\small Distribution of page faults for image convolution}}
+\label{ICp}
+\end{figure*}
+
+To measure the performance, we measured the running time of the applications, as well as the number
+of page faults caused by them. Using both these metrics allows us to get a more nuanced picture of
+the performance. What we are ultimately interested in is improved running time. However, the running
+time is not only affected by the number of page faults. Our system might, for instance, reduce the
+number of page faults, without improving the running time due to overhead.
+
+Further, in another attempt to measure the overhead of our implementation, we adjusted the memory
+consumption of our programs, and ran them both with and without sufficient physical memory.
+
+All the experiments were conducted on a PC with a 2.26 GHz dual core processor and 2GB of memory,
+running Ubuntu Linux with our modified 2.6.38.2 kernel. All nonessential processes were stopped to
+avoid interference. The number of page
+faults were measured using top \cite{TOP}.
+
+The matrix multiplication program was run 20 times without enough physical memory. The results is
+shown in figures ~\ref{MMr} and ~\ref{MMp}, and table ~\ref{results}. Figures ~\ref{MMr} shows the
+running time, while figure ~\ref{MMp} shows the
+number of page faults. Table X shows some summarizing statistics.
+
+The image convolution program was run 20 times without enough physical memory. The results is shown
+in figures ~\ref{ICr} and ~\ref{ICp}, and table ~\ref{results}. Figure ~\ref{ICr} shows the running
+time, while figure ~\ref{ICp} shows the number
+of page faults. Table ~\ref{results} shows some summarizing statistics.
+
+Both programs were run 10 times with enough physical memory. The results is summarized in table
+~\ref{results}.
+
+\begin{table*}[htbp]
+\centering
+{\small 
+\begin{tabular}{|l|c|c|c|c|c|}\hline
+\textbf{Experiment} & \textbf{Mean} & \textbf{Median} & \textbf{Max} & \textbf{Min} & \textbf{Std. Dev.}\\ \hline \hline
+Matrix multiplication, time, without MCPQ & 50.31s & 47.11s & 84.15s & 34.72s & 13.22s \\ \hline
+Matrix multiplication, time, with MCPQ & 43.89s & 42.08s & 64.47s & 26.81s & 10.73s \\ \hline \hline
+
+Matrix multiplication, page faults, without MCPQ & 23.45k & 22k & 31k & 20k & 3.47k \\ \hline
+Matrix multiplication, page faults, with MCPQ& 21.6k & 20.5k & 33k & 16k & 4.41k \\ \hline \hline
+
+Matrix multiplication, time, enough memory & 1.12s & 1.12s & 1.14s & 1.12s & 0.01s \\ \hline
+Matrix multiplication, time, enough memory, MCPQ. & 1.15s & 1.15s & 1.15s & 1.15s & N/A \\ \hline
+\hline
+
+Image convolution, time, without MCPQ & 39.05s & 43.83s & 58.4s & 12.85s & 15.99s \\ \hline
+Image convolution, time, wiht MCPQ & 19.99s & 19.27s & 35.13s & 12.48s & 5.83s \\ \hline \hline
+
+Image convolution, page faults, whitout MCPQ & 16.8k & 23.5k & 28k & 1k & 10.9k \\ \hline
+Image convolution, page faults, with MCPQ & 5.45k & 5k & 9k & 2k & 2.28k \\ \hline \hline
+
+Image convolution, time, enough memory & 6.83s & 6.83s & 6.87s & 6.82s & 0.02s \\ \hline
+Image convolution, time, enough memory & 7.18s & 7.07s & 7.56s & 6.95s & 0.25s \\ \hline
+\end{tabular}
+}
+\caption{\emph{\small Summary of results. The results for the page fault experiments are in
+thousands of page faults. The result of the timing experiments are in seconds. All the results for
+the matrix multiplication with enough memory experiment were the same, so the standard deviation is
+undefined.}}
+\label{results}
+\end{table*}
+
+\section{Discussion}
+
+Firstly, our results show that our new system does improve the performance of our test applications.
+For the matrix multiplication, the mean number of page faults were decreased by 8\%, while the mean
+running time were decreased by 13\%. For the image convolution the results are even clearer, with a
+49\% reduction in mean running time, and 67\% reduction in mean number of page faults. While these
+results alone should be convincing, a few more aspects of the results needs to be commented.
+
+Firstly, the performance improvement is significantly better for the image convolution, compared to
+the matrix multiplication. This is caused by the image convolution having a memory access pattern
+that's easier to integrate with our new system.
+
+Secondly, we notice the large standard deviations, in particular for the running time of the matrix
+multiplication, and the image convolution when not using our new system. Some of this variation is
+caused by the hard disk (compare to the cases where there is enough memory, and the disk is unused),
+and the unpredictable nature of its seek and rotational delays. This does not, however, directly
+explain the great variation in the number of page faults, which varies as much as from 1000 to 28
+000 in the case of image convolution. This is caused by the fact that the page reclamation algorithm
+in Linux is non-deterministic, both with and without our modifications. Its behaviour is influenced
+by the exact timing of events and execution interleavings, which again is influenced by, among other
+things, the hard disk.
+
+In some cases, both pages that will and pages that will not be needed again might be equally
+recently used in the eyes of the system, and all be candidates for eviction. Exactly which pages
+will be evicted vary, as explained above. Sometimes, the applications will be "lucky", and those
+pages that will not be needed again will be evicted. Other times, it will not, and the pages that
+will be needed again will be evicted. This will result in greatly varying numbers of page faults.
+
+Thirdly, we note that the standard deviation is significantly reduced for the image convolution,
+both for running time and number of page faults, while this is not the case for matrix
+multiplication. This might be related to the fact the the performance improvement is better for the
+image convolution than matrix multiplication. As mentioned, the memory access pattern of the image
+convolution is more easily integrated with our new calls. Using our new calls will reduce the
+non-determinism in the page reclamation algorithm, causing it to more reliably evict pages that will
+not be used again, reducing both running time, and standard deviation.
+
+Lastly, the reduction in the number of page faults corresponds to the reduction in running time, as
+expected. Our system reduces the number of page faults, which causes the running time to be reduced,
+without this reduction being "eaten up" by the increased overhead of our system. To measure this
+overhead we ran the applications with sufficient physical memory. Since no pages will be evicted,
+our system will not improve the running time. Our system does incur some overhead, the mean running
+time increases by 5\% and 3\% for the image convolution and matrix multiplication respectively. Some
+overhead is unavoidable because the system calls causes context switches to the kernel and back.
+
+\section{Future Work}
+As indicated in table X, there are several features of our system which we have not yet implemented,
+including local page replacement policies, and automatic clean up. Further much work remains in
+making the system more stable and robust. Finally more tests could be conducted. In particular more
+test applications could be used, and the performance of applications could be measured while running
+concurrently with other applications.
+
+\section{Conclusion}
+We have implemented a system which allows applications with memory access
+patterns that perform poorly with standard page reclamation algorithms to give hints to the
+operating system in order to improve performance. In particular, we have implemented a system which
+allows applications to create and manipulate memory chains. Intuitively, the pages in a chain are
+those currently being actively used by an application. In our system, all the pages in a chain are
+treated by the memory management unit as if they were the best page in the chain, that is, the page
+in the chain least likely to be evicted.
+
+We have implemented our system by modifying the Linux operating system. We have evaluated it by
+running applications with memory access patterns that works poorly with the default memory
+management policies. Our results show that our system successfully improves performance by reducing
+both the mean number of page faults and mean running time for both the tested applications.
+
+\bibliographystyle{plain}
+\bibliography{references.bib}
+
+\end{document}
